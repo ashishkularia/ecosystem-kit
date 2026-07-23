@@ -30,6 +30,7 @@ safe-push only, owner-only merges.
 """
 import json
 import re
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -38,9 +39,9 @@ from pathlib import Path
 
 TRIGGER_AUTHOR = "ashishkularia"   # the human whose comments summon a session
 MARKER = "—claude"
-CLAUDE = "/home/ubuntu/.local/bin/claude"
+CLAUDE = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
 TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
-REGISTRY = Path.home() / ".claude" / "pr-poller-repos"
+REGISTRY = Path.home() / ".claude" / "repo-registry"
 STATE_PATH = Path.home() / ".claude" / "pr-poller-state.json"
 LOG = Path.home() / ".claude" / "pr-poller.log"
 

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# safe-push — the only push path for Claude Code sessions on this machine.
+#
+# Owner rules (2026-07-23):
+#   - raw `git push` stays permission-denied for Claude
+#   - updating an EXISTING remote default branch (main/master) is owner-only
+#   - feature branches and the FIRST publish of a repo (remote default branch
+#     does not exist yet) are allowed — that's how new repos get backed up
+#   - no force pushes, no deletions, ever
+#
+# Usage: safe-push [-C <repo-dir>] [remote] [refspec...]
+#        (defaults: current dir, origin, current branch)
+set -euo pipefail
+
+die() { echo "safe-push: REFUSED — $*" >&2; exit 1; }
+
+if [ "${1:-}" = "-C" ]; then
+  [ -n "${2:-}" ] || die "-C needs a directory."
+  cd "$2" || die "cannot cd to '$2'."
+  shift 2
+fi
+
+remote="origin"
+refspecs=()
+passthru=()
+for arg in "$@"; do
+  case "$arg" in
+    -f|--force|--force-with-lease*|--force-if-includes|--mirror|--delete|-d|--prune)
+      die "'$arg' rewrites or deletes remote history; do it yourself if you really mean it." ;;
+    -u|--set-upstream|--tags|--follow-tags) passthru+=("$arg") ;;
+    -*) die "unrecognised flag '$arg' (safe-push accepts -u/--tags only)." ;;
+    *) if [ "$remote" = "origin" ] && [ ${#refspecs[@]} -eq 0 ] && git remote get-url "$arg" >/dev/null 2>&1; then
+         remote="$arg"
+       else
+         refspecs+=("$arg")
+       fi ;;
+  esac
+done
+
+if [ ${#refspecs[@]} -eq 0 ]; then
+  refspecs=("$(git symbolic-ref --short HEAD)") || die "detached HEAD and no refspec given."
+fi
+
+# Remote default branch (empty when the remote repo has no commits yet).
+default_branch="$(git ls-remote --symref "$remote" HEAD 2>/dev/null \
+  | sed -n 's|^ref: refs/heads/\(.*\)\tHEAD$|\1|p')"
+
+for spec in "${refspecs[@]}"; do
+  dst="${spec##*:}"          # src:dst → dst; bare ref → itself
+  dst="${dst#refs/heads/}"
+  case "$dst" in
+    main|master)
+      # Allowed only when this branch does not exist on the remote yet
+      # (initial publish of a fresh repo).
+      if [ -n "$(git ls-remote --heads "$remote" "$dst" 2>/dev/null)" ]; then
+        die "'$dst' already exists on '$remote'. Updating it is owner-only — open a PR, or run: git push $remote $spec"
+      fi ;;
+  esac
+  if [ -n "$default_branch" ] && [ "$dst" = "$default_branch" ] \
+     && [ -n "$(git ls-remote --heads "$remote" "$dst" 2>/dev/null)" ]; then
+    die "'$dst' is the default branch of '$remote'. Updating it is owner-only."
+  fi
+done
+
+exec git push "${passthru[@]}" "$remote" "${refspecs[@]}"

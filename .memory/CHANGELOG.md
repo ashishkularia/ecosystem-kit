@@ -1,5 +1,19 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-07-24 — Machine layer versioned + bootstrap (owner: "would a fresh
+  machine configure itself?" — it couldn't; now it can). `tools/` gains
+  safe-push, weekly-hygiene, and guard_protected_branch.py (previously
+  hand-built, unversioned in ~/.claude), plus `tools/bootstrap-machine.sh`:
+  automated machine config (deploy tools to ~/.claude/bin + hooks-machine,
+  merge guardrail permissions + branch-guard hook wiring into
+  settings.local.json, install both cron entries, create dirs) followed by
+  interactive manual steps (SSH key, PAT, Claude login, repo registration)
+  each running a confirm→VERIFY→retry loop — a failed verification re-asks
+  the same step with the failure reason. weekly-hygiene refactored off its
+  hardcoded repo list onto the shared machine registry
+  (~/.claude/repo-registry) — same review finding as the poller; both tools
+  now read it, and the poller's register/unregister manages it. Tools
+  auto-detect the claude binary (CLAUDE_BIN override supported).
 - 2026-07-24 — `tools/pr-comment-poller`: cron-driven GitHub poller closing the
   "owner comments on a PR, nobody notices until a session opens" gap. Pure API
   polling (no AI cost) until new owner comments appear on an open PR, then one

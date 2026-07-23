@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# weekly-hygiene [--dry-run] [repo...] — headless .memory maintenance.
+#
+# The drain loops (STATE revalidation, VERIFY retirement, summary digest) are
+# the parts proven to rot under discipline alone, so a machine runs them
+# weekly. Doc-only by design: touches nothing outside .memory/, commits on
+# the current branch, NEVER pushes (owner pushes/merges; safe-push guards the
+# remotes anyway).
+#
+# Repo list comes from the shared machine registry (~/.claude/repo-registry,
+# one checkout path per line — manage with `pr-comment-poller register`).
+# Each repo opted in by being registered; this script just runs the loop.
+set -uo pipefail
+
+CLAUDE="${CLAUDE_BIN:-$(command -v claude || echo "$HOME/.local/bin/claude")}"
+REGISTRY="$HOME/.claude/repo-registry"
+
+DRY=0
+[ "${1:-}" = "--dry-run" ] && { DRY=1; shift; }
+
+REPOS=()
+if [ $# -gt 0 ]; then
+  REPOS=("$@")
+elif [ -f "$REGISTRY" ]; then
+  while IFS= read -r line; do
+    line="${line%%#*}"; line="$(echo "$line" | tr -d '[:space:]')"
+    [ -n "$line" ] && REPOS+=("$line")
+  done < "$REGISTRY"
+fi
+if [ ${#REPOS[@]} -eq 0 ]; then
+  echo "no repos: registry $REGISTRY is empty — register checkouts with: pr-comment-poller register <path>"
+  exit 1
+fi
+
+TODAY=$(date +%F)
+PROMPT="Weekly .memory hygiene run (headless, ${TODAY}). Work ONLY inside this repository's .memory/ directory, in this order:
+1. /state — revalidate .memory/STATE.md against the repository's reality and restamp its validation date; route surprises to ISSUES.md.
+2. /verify — work through .memory/VERIFY.md entries whose acceptance criteria can be checked read-only from here; tick what passes, annotate what fails. Never mutate live systems, never deploy, never call destructive tools.
+3. /summary — digest ISSUES + IDEAS + VERIFY + CHANGELOG into a top-3 'do next' list.
+4. Append a diary entry to .memory/diary/${TODAY}.md: what the hygiene run found, what changed, the top-3.
+5. Only if the repository is on its default branch with a clean merge state (no rebase or merge in progress, not detached): stage ONLY .memory/ paths and commit with message 'chore(memory): weekly hygiene ${TODAY}'. Do not push anything. If the git state looks unusual in any way, write the diary entry and stop there."
+
+for repo in "${REPOS[@]}"; do
+  name=$(basename "$repo")
+  if [ ! -d "$repo/.memory" ] || ! git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "[skip] $name: no .memory or not a git repo"
+    continue
+  fi
+  gitdir=$(git -C "$repo" rev-parse --git-dir)
+  if [ -e "$gitdir/MERGE_HEAD" ] || [ -d "$gitdir/rebase-merge" ] || [ -d "$gitdir/rebase-apply" ]; then
+    echo "[skip] $name: merge/rebase in progress"
+    continue
+  fi
+  mkdir -p "$repo/.memory/cache"
+  log="$repo/.memory/cache/hygiene-${TODAY}.log"
+  if [ "$DRY" -eq 1 ]; then
+    echo "[dry]  $name: would run claude -p in $repo (log: $log)"
+    continue
+  fi
+  echo "[run]  $name -> $log"
+  ( cd "$repo" && "$CLAUDE" -p "$PROMPT" ) >> "$log" 2>&1 \
+    && echo "[ok]   $name" || echo "[FAIL] $name (see $log)"
+done
