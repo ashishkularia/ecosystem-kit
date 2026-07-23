@@ -1,5 +1,6 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-07-24 — Knowledge cleanup (chore/knowledge-cleanup): adaptive-ceremony.md becomes the single home of the level→pipeline mapping (express drift resolved: express review = builder's own session, never a spawned task); DA scoring, autonomy rule, handoff checklist, and the "red tests, not prose" mantra de-duplicated into single owners with pointers; diary-template absorbed into /diary and deleted; machine layer documented (README + ARCHITECTURE §11); stale identifiers fixed (HOOK_MODULES→discover_hook_modules, GitHub MCP matcher wording, kit-update qualifier).
 - 2026-07-24 — Machine layer versioned + bootstrap (owner: "would a fresh
   machine configure itself?" — it couldn't; now it can). `tools/` gains
   safe-push, weekly-hygiene, and guard_protected_branch.py (previously
