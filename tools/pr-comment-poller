@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""pr-comment-poller — 'Claude reads my MR comments by default'.
+
+Cron runs this every 15 minutes (daytime). Token-cheap by design: pure GitHub
+API polling (no AI) until there IS something to do. When an open PR gains new
+owner comments since the last poll, it launches ONE headless `claude -p` in
+that project's live checkout to address them.
+
+CREDENTIAL: read exclusively from ~/.secrets/github-pat — a file the OWNER
+creates deliberately (chmod 600) to grant this tool API access. The tool
+never reads tokens out of any other config, and never prints one.
+
+LOOP SAFETY: Claude's PR replies post under the owner's PAT (same author), so
+replies are signed with a trailing marker and marker-signed bodies are
+ignored; the last-seen timestamp always advances, so nothing retriggers.
+The launched session inherits every guardrail: worktrees for code changes,
+safe-push only, owner-only merges.
+"""
+import json
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+OWNER = "ashishkularia"
+MARKER = "—claude"
+CLAUDE = "/home/ubuntu/.local/bin/claude"
+TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
+STATE_PATH = Path.home() / ".claude" / "pr-poller-state.json"
+LOG = Path.home() / ".claude" / "pr-poller.log"
+REPOS = {
+    "DevContainer": "/home/ubuntu/DevContainer",
+    "mylantite_app": "/home/ubuntu/DevContainer/mylantite",
+    "grade5": "/home/ubuntu/DevContainer/grade5",
+    "meritick": "/home/ubuntu/DevContainer/meritick",
+    "homelab": "/home/ubuntu/homeassistant",
+}
+
+
+def log(msg):
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(LOG, "a") as f:
+        f.write(f"{stamp} {msg}\n")
+
+
+def api(tok, path):
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        headers={"Authorization": f"Bearer {tok}",
+                 "Accept": "application/vnd.github+json",
+                 "User-Agent": "pr-comment-poller"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "run"
+    if not TOKEN_FILE.exists():
+        print(f"no token file at {TOKEN_FILE} — create it (chmod 600) to enable polling")
+        return 1
+    tok = TOKEN_FILE.read_text().strip()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    state = json.loads(STATE_PATH.read_text()) if STATE_PATH.exists() else {}
+    launches = []
+
+    for repo, path in REPOS.items():
+        try:
+            prs = api(tok, f"/repos/{OWNER}/{repo}/pulls?state=open&per_page=20")
+        except Exception as e:
+            log(f"{repo}: API error {e}")
+            continue
+        for pr in prs:
+            key = f"{repo}#{pr['number']}"
+            last = state.get(key, "1970-01-01T00:00:00Z")
+            fresh = []
+            for endpoint in (
+                f"/repos/{OWNER}/{repo}/pulls/{pr['number']}/comments?since={last}&per_page=50",
+                f"/repos/{OWNER}/{repo}/issues/{pr['number']}/comments?since={last}&per_page=50",
+            ):
+                try:
+                    for c in api(tok, endpoint):
+                        if c.get("user", {}).get("login") != OWNER:
+                            continue
+                        if (c.get("body") or "").rstrip().endswith(MARKER):
+                            continue  # our own signed reply
+                        if c.get("created_at", "") > last:
+                            fresh.append(c)
+                except Exception as e:
+                    log(f"{key}: comment fetch error {e}")
+            state[key] = now
+            if fresh and mode != "init":
+                launches.append((repo, path, pr["number"], len(fresh)))
+
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
+
+    if mode == "init":
+        print(f"initialized — {len(state)} open PR(s) baselined, nothing triggered")
+        log(f"state initialized for {len(state)} open PR(s)")
+        return 0
+    if mode == "check":
+        for repo, _, num, n in launches:
+            print(f"would launch: {repo}#{num} ({n} new owner comment(s))")
+        if not launches:
+            print("no new owner activity")
+        return 0
+
+    for repo, path, num, n in launches:
+        log(f"{repo}#{num}: {n} new owner comment(s) — launching claude")
+        prompt = (
+            f"The owner left new review comments on PR #{num} of {OWNER}/{repo}. "
+            f"Run /pr-babysit for that PR: read every unresolved review thread and PR "
+            f"comment, address each one — doc/.memory changes may be made directly; for "
+            f"code changes work in a git worktree of the PR branch and never switch "
+            f"branches in this live checkout — push via /home/ubuntu/.claude/bin/safe-push, "
+            f"and reply to each addressed thread. End every reply you post with "
+            f"'{MARKER}' on its own line. Never merge anything; the owner merges."
+        )
+        try:
+            with open(LOG, "a") as lf:
+                subprocess.run([CLAUDE, "-p", prompt], cwd=path, timeout=3600,
+                               stdout=lf, stderr=subprocess.STDOUT)
+            log(f"{repo}#{num}: claude run finished")
+        except Exception as e:
+            log(f"{repo}#{num}: claude run failed: {e}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

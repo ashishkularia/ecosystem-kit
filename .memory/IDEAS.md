@@ -7,3 +7,4 @@ Format: `- [ ] YYYY-MM-DD — idea`
 - [ ] 2026-07-23 — Per-project extra hooks dir (`.claude/hooks-local/`) globbed by the daemon but never touched by `update.sh`, so projects can add hooks without forking the engine.
 - [ ] 2026-07-23 — `install.sh --dry-run` that prints the full action plan without writing anything.
 - [ ] 2026-07-23 — Kit CI: run `python3 -m unittest discover engine/hooks/tests` + a fixture install/update/health-check round-trip on every kit PR (the same harness used during authoring).
+- [ ] 2026-07-24 — session_boot should surface OPEN PRs + unresolved review-thread counts for the repo at session start (needs a token source the hook may read, e.g. ~/.secrets/github-pat; fail-open when absent). Origin: owner asked "I left comments on the MR — how would a session know by default?"
