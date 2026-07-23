@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""pr-comment-poller — 'Claude reads my MR comments by default'.
+
+DESIGN (owner review, kit PR #1): each repo owns its PARTICIPATION, the
+machine runs ONE poll loop. No hardcoded repo list — a registry file holds
+local checkout paths (one per line), and each repo's GitHub coordinates are
+derived from its own `origin` remote. One cron, one API budget, one state
+file; adding a project is `pr-comment-poller register <path>`.
+
+Usage:
+  pr-comment-poller register <path>   add a local checkout to the registry
+  pr-comment-poller unregister <path> remove it
+  pr-comment-poller init              baseline open PRs (nothing triggers)
+  pr-comment-poller check             dry-run: report what would launch
+  pr-comment-poller                   poll; launch headless sessions on news
+
+Cron-friendly and token-cheap: pure GitHub API polling (no AI) until an open
+PR gains new owner comments; then ONE headless `claude -p` runs in that
+repo's checkout to address them.
+
+CREDENTIAL: read exclusively from ~/.secrets/github-pat — a file the OWNER
+creates deliberately (chmod 600). Never read from any other config, never
+printed.
+
+LOOP SAFETY: Claude's PR replies post under the owner's PAT (same author), so
+replies are signed with a trailing marker and marker-signed bodies are
+ignored; the last-seen timestamp always advances, so nothing retriggers.
+Launched sessions inherit every guardrail: worktrees for code changes,
+safe-push only, owner-only merges.
+"""
+import json
+import re
+import shutil
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+TRIGGER_AUTHOR = "ashishkularia"   # the human whose comments summon a session
+MARKER = "—claude"
+CLAUDE = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
+TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
+REGISTRY = Path.home() / ".claude" / "repo-registry"
+STATE_PATH = Path.home() / ".claude" / "pr-poller-state.json"
+LOG = Path.home() / ".claude" / "pr-poller.log"
+
+REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
+
+
+def log(msg):
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(LOG, "a") as f:
+        f.write(f"{stamp} {msg}\n")
+
+
+def registered_paths():
+    if not REGISTRY.exists():
+        return []
+    return [ln.strip() for ln in REGISTRY.read_text().splitlines()
+            if ln.strip() and not ln.strip().startswith("#")]
+
+
+def repo_coords(path):
+    """Derive (owner, repo) from the checkout's own origin remote."""
+    try:
+        url = subprocess.run(["git", "-C", path, "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except Exception:
+        return None
+    m = REMOTE_RE.search(url)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def api(tok, path):
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        headers={"Authorization": f"Bearer {tok}",
+                 "Accept": "application/vnd.github+json",
+                 "User-Agent": "pr-comment-poller"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "run"
+
+    if mode in ("register", "unregister"):
+        if len(sys.argv) < 3:
+            print(f"usage: pr-comment-poller {mode} <path>"); return 1
+        p = str(Path(sys.argv[2]).resolve())
+        if mode == "register" and not repo_coords(p):
+            print(f"{p}: not a git checkout with a github origin"); return 1
+        paths = registered_paths()
+        if mode == "register" and p not in paths:
+            paths.append(p)
+        if mode == "unregister" and p in paths:
+            paths.remove(p)
+        REGISTRY.parent.mkdir(parents=True, exist_ok=True)
+        REGISTRY.write_text("\n".join(paths) + ("\n" if paths else ""))
+        print(f"{mode}ed {p} ({len(paths)} repo(s) in registry)")
+        return 0
+
+    if not TOKEN_FILE.exists():
+        print(f"no token file at {TOKEN_FILE} — create it (chmod 600) to enable polling")
+        return 1
+    tok = TOKEN_FILE.read_text().strip()
+    paths = registered_paths()
+    if not paths:
+        print(f"registry {REGISTRY} is empty — register checkouts first")
+        return 1
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    state = json.loads(STATE_PATH.read_text()) if STATE_PATH.exists() else {}
+    launches = []
+
+    for path in paths:
+        coords = repo_coords(path)
+        if not coords:
+            log(f"{path}: no github origin — skipped")
+            continue
+        owner, repo = coords
+        try:
+            prs = api(tok, f"/repos/{owner}/{repo}/pulls?state=open&per_page=20")
+        except Exception as e:
+            log(f"{owner}/{repo}: API error {e}")
+            continue
+        for pr in prs:
+            key = f"{owner}/{repo}#{pr['number']}"
+            last = state.get(key, "1970-01-01T00:00:00Z")
+            fresh = []
+            for endpoint in (
+                f"/repos/{owner}/{repo}/pulls/{pr['number']}/comments?since={last}&per_page=50",
+                f"/repos/{owner}/{repo}/issues/{pr['number']}/comments?since={last}&per_page=50",
+            ):
+                try:
+                    for c in api(tok, endpoint):
+                        if c.get("user", {}).get("login") != TRIGGER_AUTHOR:
+                            continue
+                        if (c.get("body") or "").rstrip().endswith(MARKER):
+                            continue  # our own signed reply
+                        if c.get("created_at", "") > last:
+                            fresh.append(c)
+                except Exception as e:
+                    log(f"{key}: comment fetch error {e}")
+            state[key] = now
+            if fresh and mode != "init":
+                launches.append((owner, repo, path, pr["number"], len(fresh)))
+
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
+
+    if mode == "init":
+        print(f"initialized — {len(state)} open PR(s) baselined across {len(paths)} repo(s)")
+        log(f"state initialized: {len(state)} PR(s), {len(paths)} repo(s)")
+        return 0
+    if mode == "check":
+        for owner, repo, _, num, n in launches:
+            print(f"would launch: {owner}/{repo}#{num} ({n} new owner comment(s))")
+        if not launches:
+            print("no new owner activity")
+        return 0
+
+    for owner, repo, path, num, n in launches:
+        log(f"{owner}/{repo}#{num}: {n} new owner comment(s) — launching claude in {path}")
+        prompt = (
+            f"The owner left new review comments on PR #{num} of {owner}/{repo}. "
+            f"Run /pr-babysit for that PR: read every unresolved review thread and PR "
+            f"comment, address each one — doc/.memory changes may be made directly; for "
+            f"code changes work in a git worktree of the PR branch and never switch "
+            f"branches in this live checkout — push via /home/ubuntu/.claude/bin/safe-push, "
+            f"and reply to each addressed thread. End every reply you post with "
+            f"'{MARKER}' on its own line. Never merge anything; the owner merges."
+        )
+        try:
+            with open(LOG, "a") as lf:
+                subprocess.run([CLAUDE, "-p", prompt], cwd=path, timeout=3600,
+                               stdout=lf, stderr=subprocess.STDOUT)
+            log(f"{owner}/{repo}#{num}: claude run finished")
+        except Exception as e:
+            log(f"{owner}/{repo}#{num}: claude run failed: {e}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
