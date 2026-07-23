@@ -32,6 +32,8 @@ The same guarantee holds for non-interactive sessions (`claude -p`, CI, schedule
 
 **Claude never merges or writes to `main`/`master` — anywhere, in any repo.** Only the owner merges. This is enforced fail-closed by `guard_protected_merge` (git merge/rebase into protected branches, `gh pr merge`, push refspecs targeting protected branches, GitHub MCP write tools) and `guard_branch_naming` (protected names are never creatable). `/pr-babysit` shepherds a PR through checks and review comments but stops short of the merge button, always.
 
+The guarantee also holds outside any repo, via the machine layer (`tools/`, deployed by `tools/bootstrap-machine.sh`): deny-permissions on raw `git push` and GitHub MCP merge tools in `~/.claude/settings.local.json`, `safe-push` in `~/.claude/bin` as the only push path (never an existing remote default branch, never force, never delete), `guard_protected_branch.py` in `~/.claude/hooks-machine` wired against GitHub MCP tools, and the shared repo registry (`~/.claude/repo-registry`) driving the `weekly-hygiene` and `pr-comment-poller` cron jobs. See `docs/ARCHITECTURE.md` §11.
+
 ## Install
 
 ```bash
@@ -60,6 +62,8 @@ templates/             memory roster, settings, CLAUDE.md, commands/, agents/, s
 profiles/              per-project kit.json seeds (mylantite, grade5, meritick, homelab, devcontainer)
 installer/             install.sh, update.sh
 scripts/               health-check.sh
+tools/                 machine layer: safe-push, weekly-hygiene, pr-comment-poller,
+                       guard_protected_branch.py, bootstrap-machine.sh (deploys it all)
 docs/ARCHITECTURE.md   how it all fits together
 kit.config.example.json / .md   full schema example + key-by-key reference
 .memory/               the kit's own knowledge (it eats its own dog food)
