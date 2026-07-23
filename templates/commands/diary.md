@@ -3,8 +3,10 @@ description: Write or append today's diary entry in .memory/diary/
 ---
 
 Write today's diary entry: `.memory/diary/YYYY-MM-DD.md`. Create it from the
-dear-diary format if absent; if it already has a session block from earlier
-today, append a new `## Session — <label>` block below it.
+skeleton below if absent; if it already has a session block from earlier
+today, append a new `## Session — <label>` block below it. The Stop gate
+(docs_contract, when `kit.json` `diary` is true) checks today's file was
+touched before the session ends — this command writes it properly.
 
 1. Look back over the session honestly, first person — this is the
    note-to-future-self that survives context loss, not a status report.
@@ -17,3 +19,22 @@ today, append a new `## Session — <label>` block below it.
    beats "done". Point at CHANGELOG lines rather than repeating them.
 5. **Open:** loose ends and the next-session pointer — what I'd want shouted
    at me tomorrow morning before touching the keyboard.
+
+Skeleton (one `## Session` block per session; multi-session days append the
+next block below the previous one):
+
+```markdown
+# Diary — YYYY-MM-DD
+
+## Session — <short label>
+
+Dear diary,
+
+**Discussed:** …
+
+**Decided:** …
+
+**Done:** …
+
+**Open:** …
+```
