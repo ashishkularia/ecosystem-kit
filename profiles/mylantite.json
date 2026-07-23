@@ -1,0 +1,136 @@
+{
+  "kit_version": "1.0.0",
+  "project": "mylantite",
+  "stack": "laravel-react",
+  "_note": "B2C consumer SaaS (Laravel 13 + React 19) for standardised-exam prep. Auth, billing, and exam-lifecycle paths escalate to critical ceremony. App runs inside the mylantite_app container hosted by the DevContainer harness.",
+  "protected_branches": ["main", "master"],
+  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": true,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1", "G3"],
+      "standard": ["G1", "G3", "G4", "G7"],
+      "full": ["G1", "G2", "G3", "G4", "G5", "G6", "G7"],
+      "critical": ["G1", "G2", "G3", "G4", "G5", "G6", "G7"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Code Standards",
+      "desc": "Formatting, static analysis, lint, TypeScript types, and generated TS enum drift all clean. PASS = zero errors (warnings acceptable, documented).",
+      "commands": [
+        "docker exec mylantite_app ./vendor/bin/pint --test",
+        "docker exec mylantite_app ./vendor/bin/phpstan analyse",
+        "docker exec mylantite_app npx eslint --no-warn-ignored .",
+        "docker exec mylantite_app npx tsc --noEmit",
+        "docker exec mylantite_app composer ts:enums && git diff --exit-code -- resources/js"
+      ]
+    },
+    "G2": {
+      "name": "Security",
+      "desc": "No OWASP Top 10 violations. Per-user isolation: user-owned models carry user_id FK + policy ownership check. user_id/role/is_admin never in $fillable. All endpoints validate via FormRequests. Cross-user access returns 403 (IDOR). No raw SQL without parameter binding. FAIL on any Critical/High finding.",
+      "commands": []
+    },
+    "G3": {
+      "name": "Alignment",
+      "desc": "Implementation matches the original request: all requested functionality present, no scope creep, solves the stated problem, endpoints match the architected design.",
+      "commands": []
+    },
+    "G4": {
+      "name": "Test Coverage",
+      "desc": ">=80% overall, >=90% on lines added, >=95% on critical paths (auth/authz flows, per-user isolation, exam attempt lifecycle, payment processing, RBAC policies). FAIL below 80% overall or 90% critical.",
+      "commands": [
+        "docker exec mylantite_app php artisan test --coverage"
+      ]
+    },
+    "G5": {
+      "name": "Domain Correctness",
+      "desc": "Business rules produce correct results; cross-user data access impossible; each role limited to permitted resources; boundary conditions tested; referential integrity maintained.",
+      "commands": []
+    },
+    "G6": {
+      "name": "DevOps Readiness",
+      "desc": "Migrations reversible (safe down()) and independent of uncommitted migrations; Docker builds healthy; new env vars documented in .env.example; new config keys have sensible defaults.",
+      "commands": []
+    },
+    "G7": {
+      "name": "TDD Compliance",
+      "desc": "Red-Green-Refactor followed: tests written before implementation, minimal code to green, refactor without behavior change. No implementation committed without corresponding tests. Tests assert behavior, not implementation details.",
+      "commands": []
+    }
+  },
+  "containers": {
+    "app": "mylantite_app"
+  },
+  "quality_commands": {
+    "format": [
+      "docker exec mylantite_app ./vendor/bin/pint",
+      "docker exec mylantite_app npx prettier --write resources/js"
+    ],
+    "lint": [
+      "docker exec mylantite_app npx eslint --no-warn-ignored ."
+    ],
+    "typecheck": [
+      "docker exec mylantite_app ./vendor/bin/phpstan analyse",
+      "docker exec mylantite_app npx tsc --noEmit",
+      "docker exec mylantite_app composer ts:enums && git diff --exit-code -- resources/js"
+    ],
+    "test": [
+      "docker exec mylantite_app php artisan test"
+    ]
+  },
+  "source_patterns": [
+    "^app/.*\\.php$",
+    "^routes/.*\\.php$",
+    "^database/migrations/.*\\.php$",
+    "^resources/js/(?!test/).*\\.(ts|tsx|js|jsx)$"
+  ],
+  "domain_map": [
+    {
+      "pattern": "(app/Http/Controllers/Api/V1/Billing/|app/Services/Billing/|app/Models/(Subscription|SubscriptionPlan|Charge|Invoice|PaymentMethod|Refund|Coupon|CouponRedemption|PlanMigration|WebhookEvent)\\.php)",
+      "docs": [".memory/references/payment-security.md", ".memory/contexts/audit-logging.md"]
+    },
+    {
+      "pattern": "(app/Http/Controllers/Api/V1/Auth/|app/Models/(User|SocialAccount|DeviceToken)\\.php)",
+      "docs": [".memory/contexts/security-standards.md", ".memory/references/laravel-security.md"]
+    },
+    {
+      "pattern": "(app/Policies/|app/Models/(Role|Permission)\\.php|RolesAndPermissionsSeeder)",
+      "docs": [".memory/contexts/authorization-pattern.md", ".memory/references/rbac-permissions.md", ".memory/references/per-user-isolation.md"]
+    },
+    {
+      "pattern": "(app/Models/(Exam|ExamSection|Question[A-Za-z]*|TestAttempt[A-Za-z]*|PracticeTest)\\.php|app/Http/Controllers/Api/V1/(TestAttempts?|TestSessions|ExamManagement)/)",
+      "docs": [".memory/references/lantite-exam-security.md", ".memory/contexts/content-visibility-checklist.md"]
+    },
+    {
+      "pattern": "(app/Jobs/|app/Listeners/|app/Notifications/)",
+      "docs": [".memory/contexts/queue-jobs.md"]
+    },
+    {
+      "pattern": "(routes/api/|app/Http/Controllers/|app/Http/Requests/|app/Http/Resources/)",
+      "docs": [".memory/references/api-contract-standards.md"]
+    },
+    {
+      "pattern": "((^|/)tests/.+\\.php$|resources/js/.*\\.test\\.tsx?$|resources/js/test/)",
+      "docs": [".memory/contexts/testing-strategy.md"]
+    },
+    {
+      "pattern": "resources/js/(features/[^/]+/api/|lib/query/|lib/http/)",
+      "docs": [".memory/contexts/caching-patterns.md", ".memory/contexts/performance-standards.md"]
+    }
+  ],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "advise",
+    "fail_fast": "advise",
+    "logging": "advise",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "diary": true
+}

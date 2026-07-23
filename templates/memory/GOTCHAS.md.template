@@ -1,0 +1,21 @@
+# GOTCHAS — {{PROJECT}}
+
+Known traps. **Anything that bites once gets a line here — that's the
+contract.** Group by area (`##` headings); newest line first within a group.
+
+## (area)
+
+<!-- Entry format:
+- **The trap in one bold sentence.** The mechanism, the symptom you'll see,
+  and the correct move. Date or incident reference when it helps
+  ("the media_player.10_0_0_30 incident" style callbacks make traps memorable).
+
+Rules:
+- A gotcha is a fact about the system that defied a reasonable expectation —
+  wrong assumptions corrected mid-session belong here (via /retro if not
+  captured live).
+- Group under ## headings by subsystem (framework, API, infra, tooling) so a
+  session touching one area can grep its section.
+- VERIFY.md surprises land here too: "delete entries once verified;
+  surprises → GOTCHAS.md".
+-->

@@ -1,0 +1,8 @@
+# ecosystem-kit: daemon runtime + per-machine files.
+# NOTE: .memory/cache/ is deliberately NOT listed here — it self-ignores via a
+# TRACKED .memory/cache/.gitignore ("*" + "!.gitignore") so the directory
+# survives clones. A root-level ".memory/cache/" line would make that
+# .gitignore itself untrackable (git cannot re-include inside an excluded dir).
+.claude/hooks/.daemon.*
+.claude/hooks/__pycache__/
+.claude/settings.local.json

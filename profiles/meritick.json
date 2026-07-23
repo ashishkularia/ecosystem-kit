@@ -1,0 +1,96 @@
+{
+  "kit_version": "1.0.0",
+  "project": "meritick",
+  "stack": "laravel-livewire",
+  "_note": "Existing branches use the feat/ prefix, so 'feat' stays a valid branch type alongside the standard set. Merge to main does NOT deploy.",
+  "protected_branches": ["main", "master"],
+  "branch_types": ["feat", "feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": false,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1", "G3"],
+      "standard": ["G1", "G3", "G4", "G7"],
+      "full": ["G1", "G2", "G3", "G4", "G5", "G6", "G7"],
+      "critical": ["G1", "G2", "G3", "G4", "G5", "G6", "G7"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Code Standards",
+      "desc": "Pint formatting, Larastan static analysis, and the frontend build all clean. PASS = zero errors.",
+      "commands": [
+        "./vendor/bin/pint --test",
+        "./vendor/bin/phpstan analyse",
+        "npm run build"
+      ]
+    },
+    "G2": {
+      "name": "Security",
+      "desc": "No OWASP Top 10 violations; input validated via FormRequests; authorization enforced on Livewire actions and routes; no mass-assignment of privileged attributes; no raw SQL without parameter binding.",
+      "commands": []
+    },
+    "G3": {
+      "name": "Alignment",
+      "desc": "Implementation matches the original request: complete, no scope creep, solves the stated problem.",
+      "commands": []
+    },
+    "G4": {
+      "name": "Test Coverage",
+      "desc": "Pest suite green with meaningful assertions. Fast sqlite suite runs locally on every change; the postgres parity suite must also pass before the work is called done (sqlite green alone is not a PASS for full/critical ceremony).",
+      "commands": [
+        "./vendor/bin/pest"
+      ]
+    },
+    "G5": {
+      "name": "Domain Correctness",
+      "desc": "Business rules produce correct results; role/tenant boundaries hold; edge cases tested; referential integrity maintained.",
+      "commands": []
+    },
+    "G6": {
+      "name": "DevOps Readiness",
+      "desc": "Migrations reversible (safe down()) and ordered; new env vars documented in .env.example; new config keys have sensible defaults. Both sqlite and postgres remain migratable.",
+      "commands": []
+    },
+    "G7": {
+      "name": "TDD Compliance",
+      "desc": "Red-Green-Refactor followed; no implementation committed without corresponding tests; tests assert behavior, not implementation details.",
+      "commands": []
+    }
+  },
+  "containers": {},
+  "quality_commands": {
+    "format": [
+      "./vendor/bin/pint"
+    ],
+    "lint": [],
+    "typecheck": [
+      "./vendor/bin/phpstan analyse",
+      "npm run build"
+    ],
+    "test": [
+      "./vendor/bin/pest"
+    ]
+  },
+  "source_patterns": [
+    "^app/.*\\.php$",
+    "^routes/.*\\.php$",
+    "^database/migrations/.*\\.php$",
+    "^resources/views/.*\\.blade\\.php$",
+    "^resources/(js|css)/.*\\.(js|ts|css)$"
+  ],
+  "domain_map": [],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "advise",
+    "fail_fast": "advise",
+    "logging": "advise",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "diary": true
+}

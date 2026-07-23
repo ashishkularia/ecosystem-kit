@@ -1,0 +1,80 @@
+{
+  "kit_version": "1.0.0",
+  "project": "devcontainer",
+  "stack": "infra-harness",
+  "_note": "Clone-in hosting harness: provides containers plus an nginx vhost per hosted project (mylantite, meritick, grade5, ...). Application code lives in the hosted repos, not here — this repo owns docker-compose, nginx, PHP images, and devcontainer/MCP config. Merge does not deploy anything by itself.",
+  "protected_branches": ["main", "master"],
+  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": false,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1"],
+      "standard": ["G1", "G3"],
+      "full": ["G1", "G2", "G3", "G4"],
+      "critical": ["G1", "G2", "G3", "G4"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Config Validity",
+      "desc": "Compose file parses and the nginx config passes syntax check. PASS = both commands exit 0.",
+      "commands": [
+        "docker compose config -q",
+        "docker exec mylantite_nginx nginx -t"
+      ]
+    },
+    "G2": {
+      "name": "Security",
+      "desc": "No secrets or credentials committed (compose, nginx, devcontainer, MCP config); .env files stay untracked; no ports exposed beyond the documented set; TLS/vhost changes reviewed for header/downgrade regressions.",
+      "commands": []
+    },
+    "G3": {
+      "name": "Alignment",
+      "desc": "Change matches the request: complete, no scope creep, hosted projects unaffected unless the change targets them.",
+      "commands": []
+    },
+    "G4": {
+      "name": "Runtime Health",
+      "desc": "After applying the change, containers come up healthy and each hosted vhost still serves. Verify with docker compose ps and a request per affected vhost.",
+      "commands": [
+        "docker compose ps"
+      ]
+    }
+  },
+  "containers": {
+    "app": "mylantite_app",
+    "nginx": "mylantite_nginx",
+    "mariadb": "mylantite_mariadb",
+    "redis": "mylantite_redis",
+    "mcp": "mylantite_mcp"
+  },
+  "quality_commands": {
+    "format": [],
+    "lint": [
+      "docker compose config -q",
+      "docker exec mylantite_nginx nginx -t"
+    ],
+    "typecheck": [],
+    "test": []
+  },
+  "source_patterns": [
+    "^docker/.*",
+    "^docker-compose\\.ya?ml$",
+    "^\\.devcontainer/(?!\\.env$).*"
+  ],
+  "domain_map": [],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "off",
+    "fail_fast": "advise",
+    "logging": "off",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "diary": true
+}

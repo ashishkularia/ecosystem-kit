@@ -1,0 +1,73 @@
+{
+  "kit_version": "1.0.0",
+  "project": "grade5",
+  "stack": "cloudflare-worker",
+  "_note": "Partnership repo — everything still lives in-repo (.memory/ included) by owner directive 2026-07-23. Two surfaces: portal/ (Cloudflare Worker app, deploys on merge to main) and the marketing site (plain static files — NO build step, by rule; never add one).",
+  "protected_branches": ["main", "master"],
+  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": true,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1"],
+      "standard": ["G1", "G3", "G4"],
+      "full": ["G1", "G2", "G3", "G4"],
+      "critical": ["G1", "G2", "G3", "G4"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Code Standards",
+      "desc": "Portal typechecks clean. Marketing site stays build-free: plain HTML/CSS/JS only — introducing a bundler, framework, or build step is a FAIL by owner rule.",
+      "commands": [
+        "npm --prefix portal run typecheck"
+      ]
+    },
+    "G2": {
+      "name": "Security",
+      "desc": "No secrets in source or wrangler config (use Cloudflare secrets); portal endpoints enforce auth where required; no credentials or tokens leaked to the client bundle or marketing pages.",
+      "commands": []
+    },
+    "G3": {
+      "name": "Alignment",
+      "desc": "Implementation matches the request: complete, no scope creep, solves the stated problem.",
+      "commands": []
+    },
+    "G4": {
+      "name": "Tests",
+      "desc": "Portal test suite green. New portal behavior lands with tests.",
+      "commands": [
+        "npm --prefix portal test"
+      ]
+    }
+  },
+  "containers": {},
+  "quality_commands": {
+    "format": [],
+    "lint": [],
+    "typecheck": [
+      "npm --prefix portal run typecheck"
+    ],
+    "test": [
+      "npm --prefix portal test"
+    ]
+  },
+  "source_patterns": [
+    "^portal/(?!node_modules/).*\\.(ts|tsx|js|jsx)$",
+    "^(?!portal/)(?!node_modules/).*\\.(html|css|js)$"
+  ],
+  "domain_map": [],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "advise",
+    "fail_fast": "advise",
+    "logging": "advise",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "diary": true
+}

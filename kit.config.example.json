@@ -1,0 +1,86 @@
+{
+  "kit_version": "1.0.0",
+  "project": "example-app",
+  "stack": "laravel-react",
+  "_note": "Free-text annotation. The engine ignores this key; use it for owner directives and repo quirks that must travel with the profile.",
+  "protected_branches": ["main", "master"],
+  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": true,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1"],
+      "standard": ["G1", "G3", "G4"],
+      "full": ["G1", "G2", "G3", "G4", "G5"],
+      "critical": ["G1", "G2", "G3", "G4", "G5"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Code Standards",
+      "desc": "Formatting, lint, static analysis, and types all clean. PASS = zero errors; warnings acceptable when documented.",
+      "commands": [
+        "docker exec example_app ./vendor/bin/pint --test",
+        "docker exec example_app npx tsc --noEmit"
+      ]
+    },
+    "G2": {
+      "name": "Security",
+      "desc": "No OWASP Top 10 violations; input validated at the boundary; authorization enforced; no secrets in source; no unbound raw SQL. FAIL on any Critical/High finding.",
+      "commands": []
+    },
+    "G3": {
+      "name": "Alignment",
+      "desc": "Implementation matches the original request: complete, no scope creep, solves the stated problem.",
+      "commands": []
+    },
+    "G4": {
+      "name": "Test Coverage",
+      "desc": "Suite green with meaningful assertions; new behavior lands with tests.",
+      "commands": [
+        "docker exec example_app php artisan test"
+      ]
+    },
+    "G5": {
+      "name": "DevOps Readiness",
+      "desc": "Migrations reversible; new env vars documented in .env.example; config keys have sensible defaults.",
+      "commands": []
+    }
+  },
+  "containers": {
+    "app": "example_app"
+  },
+  "quality_commands": {
+    "format": ["docker exec example_app ./vendor/bin/pint"],
+    "lint": ["docker exec example_app npx eslint ."],
+    "typecheck": ["docker exec example_app npx tsc --noEmit"],
+    "test": ["docker exec example_app php artisan test"]
+  },
+  "source_patterns": [
+    "^app/.*\\.php$",
+    "^resources/js/.*\\.(ts|tsx)$"
+  ],
+  "domain_map": [
+    {
+      "pattern": "(app/Policies/|app/Models/(Role|Permission)\\.php)",
+      "docs": [".memory/contexts/authorization.md"]
+    }
+  ],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "advise",
+    "fail_fast": "advise",
+    "logging": "advise",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "file_write_rules": {
+    "blocked": [],
+    "allowed": []
+  },
+  "diary": true
+}

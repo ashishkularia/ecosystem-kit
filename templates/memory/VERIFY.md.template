@@ -1,0 +1,20 @@
+# VERIFY — {{PROJECT}}
+
+Changes made but not yet verifiable (gated on a deploy, real data, a time
+window, hardware, or the owner). Each entry: what changed, how to verify,
+acceptance criteria. Drain via `/verify`; delete entries once confirmed;
+surprises → GOTCHAS.md. Open entries use `- [ ]` — session_boot counts them.
+
+<!-- Entry format (newest first; pattern quoted mid-line so session_boot's
+open-entry counter never counts this example as a real open entry):
+Entry: "- [ ] YYYY-MM-DD — what changed (one line) — **accept**: the
+       observable outcome that proves it works, precise enough that a future
+       session can check it with zero context from this one. End with what
+       gates it: Gated: deploy / time-of-day / real data / owner env."
+
+Rules:
+- "Evidence, not vibes": verification means running the command, hitting the
+  URL, inspecting the row — not re-reading the code.
+- Confirmed → delete the entry (add the CHANGELOG line if the original change
+  never got one). Failed → keep it and file what was observed in ISSUES.md.
+-->

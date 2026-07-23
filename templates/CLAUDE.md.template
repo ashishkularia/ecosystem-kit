@@ -1,0 +1,59 @@
+# {{PROJECT}}
+
+Working context for {{PROJECT}} with Claude Code. This file holds **durable
+policy only**. Everything point-in-time lives in `.memory/`: current state →
+[.memory/STATE.md](.memory/STATE.md); traps → [GOTCHAS](.memory/GOTCHAS.md);
+code style → [CONVENTIONS](.memory/CONVENTIONS.md); decision log →
+[DECISIONS](.memory/DECISIONS.md). The SDLC ecosystem (`.claude/` +
+`.memory/`) is always loaded — session_boot surfaces state, open counts, and
+the always-load list at every session start regardless of task.
+
+## Project
+
+<!-- 2–4 lines: what this is, who it's for, what "production" means here. -->
+Stack: {{STACK}} — profile in `.claude/kit.json` (gates, ceremony, quality
+commands, branch types, domain map).
+
+## Documentation contract (follow on every change)
+
+- Every app change → one line in [.memory/CHANGELOG.md](.memory/CHANGELOG.md).
+  The docs-contract Stop gate holds the session until it moves.
+- Every repo-structure/docs change → one line in
+  [.memory/DOCS-CHANGELOG.md](.memory/DOCS-CHANGELOG.md).
+- Architectural decision → one dated line in
+  [.memory/DECISIONS.md](.memory/DECISIONS.md) with the why (`/decide`).
+- Noticed but not acted on → [.memory/ISSUES.md](.memory/ISSUES.md).
+- Speculative thought → [.memory/IDEAS.md](.memory/IDEAS.md). Never act on it unasked.
+- Changed but not yet verifiable → [.memory/VERIFY.md](.memory/VERIFY.md)
+  with acceptance criteria; drain via `/verify`.
+- Session end → today's entry in `.memory/diary/` (`/diary`; the Stop gate
+  checks it when the profile enables diary).
+- A change that makes a `.memory/contexts/` or `.memory/references/` doc
+  stale → update it in the same session (context_attach surfaces the paired
+  doc; see `.memory/contexts/README.md`).
+
+## Change policy (non-negotiable)
+
+- **Protected branches (`protected_branches` in `.claude/kit.json` — main/
+  master) are owner-only.** Claude never merges into them, never pushes to
+  them, never `gh pr merge` — get the PR green (`/pr-babysit`) and wait for
+  the owner. Enforced by guard_protected_merge; the rule stands even where a
+  hook wouldn't catch it.
+- Branch names: `<type>/<slug>`, types from `.claude/kit.json` `branch_types`.
+- **No secrets in the repo, ever.** Claude never edits `.env*`, credentials,
+  or lockfiles by hand — hand exact values/commands to the owner.
+- Destructive ops (dropping data, force-push, resource deletion) need
+  explicit approval first.
+- Owner-stated always/never rules get written to
+  [.memory/CONVENTIONS.md](.memory/CONVENTIONS.md) in the same session — and
+  encoded as an architecture test where the stack allows.
+
+## Session helpers
+
+`/state` `/verify` `/issues` `/idea` `/decide` `/retro` `/summary` `/diary`
+`/pr-babysit` `/kit-update` — bodies in `.claude/commands/`. Ecosystem health:
+run the kit checkout's `scripts/health-check.sh` against this repo.
+
+<!-- Add project-specific durable policy below: architecture invariants,
+data-safety rules, API usage policy. Keep point-in-time facts OUT of this
+file — they belong in .memory/STATE.md where /state can revalidate them. -->

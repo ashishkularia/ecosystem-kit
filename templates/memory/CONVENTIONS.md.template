@@ -1,0 +1,31 @@
+# CONVENTIONS — {{PROJECT}}
+
+Opinionated rules for this codebase. Durable policy lives in `CLAUDE.md`;
+traps in [GOTCHAS.md](GOTCHAS.md). When the owner states an always/never rule
+it lands here in the same session — and, where the stack allows, as an
+architecture test so the rule fails the build instead of drifting.
+
+## Process (kit-standard)
+
+- Branch names: `<type>/<slug>` with `<type>` from `branch_types` in
+  `.claude/kit.json`. Protected branches are never created, never merged into,
+  never pushed to by Claude — owner only.
+- Every app change → one line in `.memory/CHANGELOG.md` (the Stop gate holds
+  the session until it moves).
+- Decisions via `/decide`; observations → ISSUES; speculation → IDEAS;
+  unverifiable changes → VERIFY with acceptance criteria.
+- No secrets in the repo; `.env*` and lockfiles are never hand-edited.
+
+## Code style
+
+<!-- Fill in per project. Proven section headings from live repos:
+## Layering        (who may call whom; where validation/authz/domain logic live)
+## Naming          (files, classes, jobs, entity ids — with real examples)
+## Migrations      (one concern each; forward-only in prod; destructive = plan)
+## Tests           (framework, what MUST have a test, naming)
+
+Rules:
+- Every rule states WHAT and, when not obvious, the one-line WHY.
+- A convention violated in half the codebase is a lie — either enforce it
+  (test/hook, shrink-only baseline for existing violations) or delete it.
+-->

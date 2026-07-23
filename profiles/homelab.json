@@ -1,0 +1,64 @@
+{
+  "kit_version": "1.0.0",
+  "project": "homelab",
+  "stack": "ha-docs",
+  "_note": "Home Assistant documentation/config repo. 'App source' here means MCP config mutations and dashboard YAML — changes to those are what trigger the docs contract. source_patterns are best-effort globs; tighten them against the actual repo layout after install. Default branch is master (protected first), main protected defensively.",
+  "protected_branches": ["master", "main"],
+  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": false,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1"],
+      "standard": ["G1", "G2"],
+      "full": ["G1", "G2", "G3"],
+      "critical": ["G1", "G2", "G3"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Docs Quality",
+      "desc": "Markdown lint clean across the repo. PASS = make lint-md exits 0.",
+      "commands": [
+        "make lint-md"
+      ]
+    },
+    "G2": {
+      "name": "Alignment",
+      "desc": "Change matches the request: complete, no scope creep, documentation reflects what is actually deployed (no aspirational docs).",
+      "commands": []
+    },
+    "G3": {
+      "name": "Runtime Verification",
+      "desc": "Dashboard YAML and MCP config changes verified against the live Home Assistant instance where applicable: entities exist, dashboards render, MCP servers still respond.",
+      "commands": []
+    }
+  },
+  "containers": {},
+  "quality_commands": {
+    "format": [],
+    "lint": [
+      "make lint-md"
+    ],
+    "typecheck": [],
+    "test": []
+  },
+  "source_patterns": [
+    "(^|/)dashboards?/.*\\.ya?ml$",
+    "(^|/)[^/]*mcp[^/]*\\.json$"
+  ],
+  "domain_map": [],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "off",
+    "fail_fast": "advise",
+    "logging": "off",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "diary": true
+}

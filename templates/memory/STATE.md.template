@@ -1,0 +1,28 @@
+# STATE — {{PROJECT}}
+
+Point-in-time snapshot of what exists right now. Read on demand, never trusted
+over reality — revalidate with `/state`. Newest section first.
+
+Last validated: {{DATE}}
+
+## {{DATE}} — Ecosystem installed, state not yet captured
+
+- SDLC ecosystem kit installed (`.claude/` machinery, `.memory/` knowledge).
+- Replace this section with the project's real state: what's built, what's
+  live, the counts that matter, open gates. Run `/state` to do it properly.
+
+<!-- Entry format (newest section first):
+
+## YYYY-MM-DD — headline of what changed
+
+- Terse factual lines: what exists, what shipped, what moved.
+- Numbers over adjectives — "684/3484 tests green", never "tests mostly pass".
+- Keep old sections as history; add a new dated section on top when the
+  picture changes materially.
+
+Rules:
+- The "Last validated:" line above is restamped ONLY by a real /state
+  revalidation — session_boot warns when it is more than 7 days old.
+- Drift discovered during revalidation that is *surprising* (a claimed-live
+  feature isn't, counts moved a lot) goes to ISSUES.md, not silent correction.
+-->

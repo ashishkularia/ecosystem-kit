@@ -1,0 +1,19 @@
+# DECISIONS — {{PROJECT}}
+
+One dated line per architectural/product decision: **what** + why. Append-only
+(new entries go on top, old entries are never edited or deleted — a reversal is
+a NEW line naming the entry it reverses). Record via `/decide`.
+
+- {{DATE}} — **SDLC ecosystem kit installed; protected branches are
+  owner-merge-only** — machinery in `.claude/`, knowledge in `.memory/`; Claude
+  never merges or writes to `main`/`master` in any repo (owner rule 2026-07-23).
+
+<!-- Entry format (newest first):
+- YYYY-MM-DD — **The decision, bolded, stated as a rule** — the why, in one or
+  two lines. Name who called it if not the owner. Add "Revisit only if/when …"
+  when the decision is deliberately provisional.
+
+A decision that isn't written here didn't happen. If the decision is an
+always/never rule about code, also encode it as an architecture test / lint
+rule where the stack allows — prose doesn't survive sessions; red tests do.
+-->

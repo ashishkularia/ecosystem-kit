@@ -1,0 +1,15 @@
+# IDEAS — {{PROJECT}}
+
+Speculative. **Never act on these unasked.** Bigger than an ISSUES entry,
+smaller than a plan. Add via `/idea`.
+
+<!-- Entry format (newest first):
+- **Bold title** — 2–4 lines: the what, the sketch of an approach, and any
+  prerequisite that gates it. Datestamp inline if the idea is time-sensitive.
+
+Rules:
+- IDEAS entries are acted on only when explicitly asked — an idea sitting
+  here for months is fine; that is the point of the file.
+- If an idea conflicts with a DECISIONS.md entry, record it anyway but name
+  the conflict honestly in the entry.
+-->

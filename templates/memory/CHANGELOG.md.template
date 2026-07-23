@@ -1,0 +1,20 @@
+# CHANGELOG — {{PROJECT}}
+
+One line per app change: date — what — why/ref. Newest first. The
+docs-contract Stop gate holds the session until the change you made lands here.
+
+- {{DATE}} — SDLC ecosystem kit installed (`.claude/` machinery + `.memory/`
+  knowledge roster) — every project runs the full ecosystem.
+
+<!-- Entry format (newest first):
+- YYYY-MM-DD — **what changed** (bold the headline for bigger changes) — the
+  why or the reference (issue line, decision, request). One entry per change,
+  not per file. Honest state included when relevant: "shipped, VERIFY entry
+  open for the prod leg".
+
+Rules:
+- App/instance changes only — repo-structure and docs moves go to
+  DOCS-CHANGELOG.md instead.
+- Write it in the same session as the change; the Stop gate enforces exactly
+  that.
+-->

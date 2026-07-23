@@ -1,0 +1,9 @@
+# kit runtime junk — never track
+__pycache__/
+*.pyc
+# daemon runtime files (socket/pid/log/start_attempt), wherever the daemon
+# runs — engine/hooks/ during kit development, .claude/hooks/ if installed
+.daemon.*
+.claude/settings.local.json
+# .memory/cache/ self-ignores via its own tracked .gitignore ("*" + "!.gitignore")
+# so the directory survives clones — do NOT add a .memory/cache/ line here.

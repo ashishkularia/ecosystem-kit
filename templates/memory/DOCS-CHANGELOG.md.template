@@ -1,0 +1,16 @@
+# DOCS-CHANGELOG — {{PROJECT}}
+
+One line per repo-structure/docs change (not app behaviour). Newest first.
+
+- {{DATE}} — `.memory/` knowledge roster seeded by the ecosystem-kit installer
+  (STATE, DECISIONS, ISSUES, IDEAS, GOTCHAS, CONVENTIONS, VERIFY, CHANGELOG,
+  DOCS-CHANGELOG + contexts/ references/ diary/ auto/ cache/).
+
+<!-- Entry format (newest first):
+- YYYY-MM-DD — what moved/was added/was restructured in the repo's own files,
+  and why. Path renames name both ends. /state revalidations log here too.
+
+Rules:
+- Behaviour changes go to CHANGELOG.md; this file is for the repo ABOUT
+  itself — docs added, trees moved, references updated, contexts rewritten.
+-->
