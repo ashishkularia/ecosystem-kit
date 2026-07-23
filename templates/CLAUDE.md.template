@@ -46,7 +46,8 @@ commands, branch types, domain map).
   explicit approval first.
 - Owner-stated always/never rules get written to
   [.memory/CONVENTIONS.md](.memory/CONVENTIONS.md) in the same session — and
-  encoded as an architecture test where the stack allows.
+  encoded as a red test per
+  [.memory/references/engineering-principles.md](.memory/references/engineering-principles.md).
 
 ## Session helpers
 

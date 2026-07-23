@@ -2,8 +2,8 @@
 
 Opinionated rules for this codebase. Durable policy lives in `CLAUDE.md`;
 traps in [GOTCHAS.md](GOTCHAS.md). When the owner states an always/never rule
-it lands here in the same session — and, where the stack allows, as an
-architecture test so the rule fails the build instead of drifting.
+it lands here in the same session — and as a red test where the stack allows
+(escalation path: [references/engineering-principles.md](references/engineering-principles.md)).
 
 ## Process (kit-standard)
 
@@ -27,5 +27,5 @@ architecture test so the rule fails the build instead of drifting.
 Rules:
 - Every rule states WHAT and, when not obvious, the one-line WHY.
 - A convention violated in half the codebase is a lie — either enforce it
-  (test/hook, shrink-only baseline for existing violations) or delete it.
+  (per references/engineering-principles.md) or delete it.
 -->

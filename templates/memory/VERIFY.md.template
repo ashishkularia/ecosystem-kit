@@ -11,10 +11,6 @@ Entry: "- [ ] YYYY-MM-DD — what changed (one line) — **accept**: the
        observable outcome that proves it works, precise enough that a future
        session can check it with zero context from this one. End with what
        gates it: Gated: deploy / time-of-day / real data / owner env."
-
-Rules:
-- "Evidence, not vibes": verification means running the command, hitting the
-  URL, inspecting the row — not re-reading the code.
-- Confirmed → delete the entry (add the CHANGELOG line if the original change
-  never got one). Failed → keep it and file what was observed in ISSUES.md.
+Working rules ("evidence, not vibes") live in the command:
+.claude/commands/verify.md (/verify).
 -->

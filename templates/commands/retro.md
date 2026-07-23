@@ -9,8 +9,8 @@ next month.
    recipes that worked, style preferences expressed or implied.
 2. Route each finding to its durable home:
    - Corrected wrong assumption about the system → `.memory/GOTCHAS.md`
-   - Owner "always/never do X here" → `.memory/CONVENTIONS.md` (and propose
-     an architecture test where the stack allows)
+   - Owner "always/never do X here" → `.memory/CONVENTIONS.md` (encode per
+     the escalation path in `.memory/references/engineering-principles.md`)
    - A call with a why → `.memory/DECISIONS.md` (via the /decide format)
    - A multi-step recipe worth repeating → `.memory/references/<topic>.md`
    - Personal style / cross-project workflow preference → auto-memory

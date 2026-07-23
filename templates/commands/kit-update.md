@@ -10,7 +10,7 @@ Update this repo's installed ecosystem from the kit.
    them.
 2. Run `bash <kit>/installer/update.sh <this-repo-abs-path>` — it refreshes
    the engine hooks and skills only; it never touches `.memory/`,
-   `.claude/kit.json`, or project-customized commands/agents.
+   `.claude/kit.json`, `commands/`, or `agents/`.
 3. Review the result: read update.sh's change report, `git diff` the
    `.claude/` tree, and read any changed hook before trusting it.
 4. Sanity-check the wiring: every non-underscore hook in `.claude/hooks/`

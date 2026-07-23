@@ -14,6 +14,6 @@ a NEW line naming the entry it reverses). Record via `/decide`.
   when the decision is deliberately provisional.
 
 A decision that isn't written here didn't happen. If the decision is an
-always/never rule about code, also encode it as an architecture test / lint
-rule where the stack allows — prose doesn't survive sessions; red tests do.
+always/never rule about code, encode it per the escalation path in
+references/engineering-principles.md.
 -->

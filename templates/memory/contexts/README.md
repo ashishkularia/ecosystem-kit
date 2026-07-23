@@ -8,8 +8,8 @@ content beats ten screens of completeness.
 
 ## Naming and wiring
 
-- One file per work area, named `<area>-work.md` — `ui-work.md`,
-  `marking-work.md`, `ops-work.md`, `content-work.md`.
+- One file per work area, with a short area-scoped name that matches its
+  `domain_map` entry — e.g. `ui-work.md`, `api-work.md`, `deploy-work.md`.
 - Wire each doc into `domain_map` in `.claude/kit.json` with a file-pattern
   regex. The `context_attach` hook then auto-surfaces it (once per session)
   the moment a matching file is read or edited. **An unwired context doc is
