@@ -1,9 +1,9 @@
 # Devil's Advocate Checklist
 
 The consolidated DA checklist — four dimensions: architecture, security, performance,
-reliability. Used by the reviewer during DA analysis (process and scoring in
-`.claude/skills/devils-advocate.md`; which dimensions apply at each ceremony level is
-defined there, gates per `.claude/kit.json`).
+reliability. Used by every agent producing a DA summary; the primary driver is the
+reviewer (process and scoring in `.claude/skills/devils-advocate.md`; which dimensions
+apply at each ceremony level is defined there, gates per `.claude/kit.json`).
 
 **How to use**: for each check, ask the question and judge PASS/FAIL. Every FAIL at
 Critical or High severity must block the merge. Add project-specific examples to this file
