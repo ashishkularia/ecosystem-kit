@@ -12,15 +12,10 @@ For the full team member lifecycle and shutdown procedures, see
 
 ## Ceremony-Specific Pipelines
 
-The ceremony level (`.claude/kit.json` `ceremony`) defines which agents are in the
-pipeline and thus which handoff transitions occur:
-
-| Level | Pipeline |
-|-------|----------|
-| express | conductor → builder → done |
-| standard | conductor → architect → builder → reviewer → done |
-| full | conductor → architect → builder → reviewer + qa (parallel) → done |
-| critical | conductor → architect → builder → reviewer + qa (parallel) → ops → done (human gates between phases) |
+The ceremony level determines which agents are in the pipeline and thus which handoff
+transitions occur. Resolve the level → pipeline mapping from
+`.claude/skills/adaptive-ceremony.md` "Ceremony Levels" — its single home; gates per
+`.claude/kit.json` `ceremony.levels`.
 
 ## Handoff Content by Transition
 
@@ -30,7 +25,7 @@ pipeline and thus which handoff transitions occur:
 | Architect | Builder(s) | Architecture doc, file manifest, interface contracts |
 | Builder | Builder (peer) | Interface contracts (routes, shapes, names) as soon as stable |
 | Builder(s) | Reviewer / QA | Changed-files list, test results summary, assumptions made |
-| Reviewer | QA | Review verdict, findings, concerns to probe |
+| Reviewer | QA (sequential reviews only — the standard pipelines run reviewer + qa in parallel) | Review verdict, findings, concerns to probe |
 | Reviewer / QA | Conductor | Final verdict with DA findings and risk score |
 | Conductor | Ops | Gate results, changed files, changelog material |
 

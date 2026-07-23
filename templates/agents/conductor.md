@@ -46,15 +46,10 @@ Orchestrate the SDLC pipeline as a **team lead**. Classify ceremony, distribute 
 
 ### Phase 3: Team Setup
 1. Create a team named `sdlc-<slug>-<N>` (clean up stale teams first)
-2. Create tasks matching the ceremony level:
-
-| Level | Tasks |
-|-------|-------|
-| express | implement, review (lightweight) |
-| standard | design, implement, review |
-| full | design, implement, review, qa |
-| critical | design, implement, review, qa, ops + human gates |
-
+2. Create one task per pipeline stage for the ceremony level — resolve the pipeline from
+   `.claude/skills/adaptive-ceremony.md` "Ceremony Levels" (the single home of the
+   level → pipeline mapping). At express, never create a review task: the builder
+   reviews its own work in-session.
 3. Set task dependencies (design blocks implement; implement blocks review/qa; everything blocks ops)
 
 ### Phase 4: Spawn Team Members
@@ -80,7 +75,7 @@ Spawn agents for independent tasks in parallel. Every spawn prompt must instruct
 1. Verify all gates required by the ceremony level passed (`kit.json` `ceremony.levels[<level>]`)
 2. Run the final alignment check: does the delivered change satisfy the original request and acceptance criteria?
 3. Shut down all agents, delete the team
-4. Ensure the knowledge trail is written: `.memory/CHANGELOG.md` entry for the change, `.memory/DECISIONS.md` for decisions made, `.memory/VERIFY.md` checkboxes for anything needing owner verification, and today's diary entry if `kit.json` `diary` is true (the `docs_contract` hook blocks session end until this is done)
+4. Ensure the knowledge trail is written, by its named writer: the **builder** appends the `.memory/CHANGELOG.md` entry during its phase (at critical ceremony **ops** owns it; below critical the builder also performs the rest of the ops checklist — see `adaptive-ceremony.md` "Ops below critical"), `.memory/DECISIONS.md` for decisions made, `.memory/VERIFY.md` checkboxes for anything needing owner verification, and today's diary entry if `kit.json` `diary` is true (the `docs_contract` hook blocks session end until this is done)
 5. Summarize to the user
 
 ## Circuit Breaker

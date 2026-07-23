@@ -12,12 +12,22 @@ The kit defines four ceremony levels. **Which quality gates each level enforces 
 in `.claude/kit.json` `ceremony.levels` — resolve it there, never from this file.** The
 project default is `kit.json` `ceremony.default`.
 
-| Level | Agents involved | When |
-|-------|-----------------|------|
-| express | builder (+ lightweight review by the same session) | Typos, copy, config tweaks, docs, single-file fixes with existing test coverage |
-| standard | architect, builder, reviewer | Bug fixes, small features, CRUD modules, new endpoints |
-| full | architect, builder, reviewer, qa | Major features, multi-domain changes, complex flows |
-| critical | architect, builder, reviewer, qa, ops + human gates | Auth, payments/billing, data migrations, security-sensitive paths, anything where a mistake is expensive to reverse |
+**This table is the single home of the level → pipeline mapping.** The conductor's task
+plan and the handoff transitions both resolve from it — no other doc restates it:
+
+| Level | Pipeline | When |
+|-------|----------|------|
+| express | conductor → builder → done | Typos, copy, config tweaks, docs, single-file fixes with existing test coverage |
+| standard | conductor → architect → builder → reviewer → done | Bug fixes, small features, CRUD modules, new endpoints |
+| full | conductor → architect → builder → reviewer + qa (parallel) → done | Major features, multi-domain changes, complex flows |
+| critical | conductor → architect → builder → reviewer + qa (parallel) → ops → done (human gates between phases) | Auth, payments/billing, data migrations, security-sensitive paths, anything where a mistake is expensive to reverse |
+
+**Express review**: the builder performs a lightweight review of its own work inside its
+own session — an express pipeline never spawns a review task or review agent.
+
+**Ops below critical**: only the critical pipeline includes the ops agent. At every other
+level the builder performs the ops checklist itself (commit hygiene, `.memory/CHANGELOG.md`
+entry, branch rules — see `ops.md` for the checklist).
 
 If `merge_is_deploy` is true in `kit.json`, treat everything that will land on a protected
 branch with one extra notch of suspicion — a merge is a production deploy.
@@ -86,12 +96,6 @@ auto-escalation floor.
 **Upgrade** any time. Common reasons: discovery reveals more files than estimated,
 cross-domain dependencies surface during architecture, security implications appear during
 review, the builder hits unexpected complexity.
-
-## Branch Naming
-
-`<type>/<kebab-description>` where `<type>` comes from `kit.json` `branch_types`.
-Kebab-case, 3-5 words, issue number when applicable (`fix/123-timer-not-stopping`).
-Never a name matching `kit.json` `protected_branches`.
 
 ## Hotfix Mode
 
