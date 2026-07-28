@@ -17,7 +17,7 @@ conversation; if genuinely ambiguous which call is meant, ask).
    are never edited or deleted.
 5. Add the entry at the top of the list:
    `- YYYY-MM-DD — **the decision as a rule** — the why.`
-6. If it's an always/never rule about code, propose encoding it as an
-   architecture test / lint rule / hook in the same session — prose doesn't
-   survive sessions; red tests do. Mirror pure style rules into
-   `.memory/CONVENTIONS.md`.
+6. If it's an always/never rule about code, propose encoding it as a red
+   test in the same session (escalation path + watermark pattern:
+   `.memory/references/engineering-principles.md`). Mirror pure style rules
+   into `.memory/CONVENTIONS.md`.

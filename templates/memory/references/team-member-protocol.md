@@ -24,9 +24,7 @@ ceremony level, scope, prior-phase artifacts. The spawn prompt is authoritative.
 
 ### 4. Execution
 1. Follow the Process section in your agent instructions
-2. Operate autonomously — do NOT ask clarifying questions
-3. Answer your own context questions from loaded files
-4. Document assumptions in your report
+2. Operate autonomously — see "Autonomous Mode" below
 
 ### 5. Output Documentation
 Include your complete output in your message to the conductor:
@@ -54,11 +52,15 @@ On a `shutdown_request`, respond with a `shutdown_response` approving it. Never 
 
 ## Autonomous Mode
 
-When spawned by the conductor:
+The single home of the autonomy rule. When spawned by the conductor (team-member
+operation):
 - Do NOT ask clarifying questions — answer them yourself from loaded context
 - Do NOT block waiting for human input
-- Document judgment calls in your report
+- Document judgment calls and assumptions in your report
 - Report unresolvable blockers via SendMessage
+
+When invoked **directly by a user** instead, the opposite applies: confirm context and
+ask clarifying questions before proceeding.
 
 ## Phase 0: Context Confirmation (MANDATORY)
 
@@ -68,9 +70,7 @@ Before any work:
 3. **Check for prior-phase context** — acknowledge what was already completed and what
    you are building on
 
-**When invoked directly by a user**: confirm context and ask clarifying questions first.
-**When operating as a team member**: answer the questions yourself, document assumptions,
-proceed immediately.
+Autonomy rules (team member vs direct user invocation): see "Autonomous Mode" above.
 
 ## Multi-Phase Awareness
 
@@ -96,15 +96,8 @@ proceed immediately.
 
 ## Handoff Checklist
 
-Before reporting completion (full template in `.claude/skills/handoff.md`):
-1. All assigned tasks completed or documented why not
-2. Task status updated
-3. Complete output sent to the conductor
-4. Files created/modified listed
-5. Blockers and risks noted
-6. "Notes for Next Phase" included
-7. Memory flags included (entries for `.memory/` — decisions, gotchas, issues, verify items)
-8. Devil's Advocate summary present
+Before reporting completion, run the handoff checklist in `.claude/skills/handoff.md` —
+the completion-report template and the full pre-send checklist live there.
 
 ## Error Recovery
 

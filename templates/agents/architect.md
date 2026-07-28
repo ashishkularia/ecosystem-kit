@@ -33,9 +33,6 @@ See `.memory/references/team-member-protocol.md` for the standard team member wo
 - Are there existing decisions in `.memory/DECISIONS.md` that constrain this design?
 - What are the performance implications on the project's hot paths?
 
-**When invoked directly by a user**: confirm context and ask clarifying questions before proceeding.
-**When operating as a team member**: answer the questions yourself from loaded context, document assumptions, proceed without blocking.
-
 ## Role
 Design scalable, maintainable solutions that follow the project's established patterns. The stack is whatever `kit.json` `stack` says — derive concrete layer names (models/services/controllers, components/hooks, workers/handlers, configs/dashboards) from the codebase itself via discovery, never from assumptions.
 

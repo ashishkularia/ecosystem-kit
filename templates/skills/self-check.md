@@ -31,13 +31,9 @@ checks), skip optional agents when their domain is untouched. Builders are never
 **Quality gates** — after each agent completes, verify the relevant gates passed. Gate
 definitions and commands come from `.claude/kit.json` `gates`.
 
-**Loop detection**:
-
-| Signal | Action |
-|--------|--------|
-| Same agent spawned 3+ times with same input | Abort, report failure |
-| Review-fix cycle exceeds 3 rounds | Force decision or escalate to user |
-| Agent produces identical output twice | Strike 2, reduce scope |
+**Loop detection** — am I re-spawning the same agent with the same input, cycling
+review-fix past 3 rounds, or getting identical output twice? Thresholds and actions:
+`conductor.md` "Circuit Breaker".
 
 ## Builder Self-Check
 
@@ -70,10 +66,8 @@ definitions and commands come from `.claude/kit.json` `gates`.
 - Suggested fixes are actionable, not vague
 - Positive observations included alongside negatives
 
-**Verdict consistency**:
-- APPROVE → zero critical, zero high findings
-- REQUEST CHANGES → one or more critical/high findings
-- NEEDS DISCUSSION → findings require design decisions
+**Verdict consistency** — does my verdict follow mechanically from my findings?
+(Mapping: `reviewer.md` "Fairness Rules".)
 
 ## QA Self-Check
 

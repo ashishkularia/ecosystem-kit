@@ -8,12 +8,7 @@ session_boot counts them at every session start.
 open-entry counter never counts these examples as real open issues):
 Open entry: "- [ ] YYYY-MM-DD — the observation, concrete enough to
             investigate cold — suggested action + one-line effort/risk guess."
-Closed:     "- [x] RESOLVED (YYYY-MM-DD) — outcome" — keep the closed line
-            when the history is instructive; delete it when it isn't.
-
-Rules:
-- An issue entry is an observation, not a commitment — never act on one
-  unasked; /issues is the interactive way to work them.
-- If investigation shows the observation was stale or wrong, close it with a
-  note saying why — that's a finding too.
+Closed:     "- [x] RESOLVED (YYYY-MM-DD) — outcome"
+Working rules (entries are observations, never acted on unasked) live in
+the command: .claude/commands/issues.md (/issues).
 -->

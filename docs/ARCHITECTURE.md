@@ -49,8 +49,8 @@ settings.json ──► python3 .claude/hooks/_client.py <hook>
                         │
                         ├─ Unix socket at .claude/hooks/.daemon.sock (0.5s connect / 45s response)
                         │        └─► _daemon.py: warm interpreter, EXEC_LOCK serialization,
-                        │            HOOK_MODULES = glob(HOOKS_DIR/*.py) minus _-prefixed
-                        │            (never a hardcoded roster)
+                        │            discover_hook_modules() = glob(HOOKS_DIR/*.py) minus
+                        │            _-prefixed (never a hardcoded roster)
                         └─ fallback: direct exec of the hook module (cold clone still enforces)
 ```
 
@@ -86,7 +86,7 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 | SessionStart | `session_boot` |
 | PreToolUse · Bash | `guard_dangerous_commands`, `guard_branch_naming`, `guard_protected_merge` |
 | PreToolUse · Edit\|Write | `secret_scanner`, `guard_file_writes`, `tdd_gate` |
-| PreToolUse · GitHub MCP write tools | `guard_protected_merge` |
+| PreToolUse · `mcp__github__.*` | `guard_protected_merge` (matcher catches every GitHub MCP tool; the hook itself filters to write/merge operations) |
 | PostToolUse · Edit\|Write | `docs_contract`, `context_attach`, `guard_principles` |
 | PostToolUse · Read | `context_attach` (domain docs surface on reads too, per its Edit\|Write\|Read contract) |
 | PostToolUse · Bash | `guard_commit_message`, `guard_post_test` |
@@ -157,3 +157,19 @@ Roster files each have a drain path so knowledge stays live instead of accreting
 | meritick | laravel-livewire | false | keeps `feat` branch type (existing history); Pest sqlite-fast + postgres-parity |
 | homelab | ha-docs | false | `master` protected; `make lint-md`; source = MCP config mutations + dashboard YAML; tdd/logging off |
 | devcontainer | infra-harness | false | clone-in hosting harness (containers + nginx vhost per project); gates = config validity + runtime health |
+
+The "Notable" column is a paraphrase — each profile's `_note` field in `profiles/*.json` is the SSOT for these descriptions; update it there first.
+
+## 11. Machine layer
+
+Repo-level guardrails cannot stop a push issued outside any repo, so a thin machine layer — versioned in `tools/`, deployed per machine by `tools/bootstrap-machine.sh` — backs them up:
+
+| Piece | Deployed to | Role |
+|-------|-------------|------|
+| deny permissions | `~/.claude/settings.local.json` | `git push` / `git config` / `git clean` and GitHub MCP merge tools denied machine-wide |
+| `safe-push` | `~/.claude/bin` | the only allowed push path — refuses updates to an existing remote default branch, force pushes, and deletions; feature branches and first-publish allowed |
+| `guard_protected_branch.py` | `~/.claude/hooks-machine` | PreToolUse guard wired against `mcp__github__*` tools in the machine settings |
+| repo registry | `~/.claude/repo-registry` | one checkout path per line; the shared roster both cron tools read (`pr-comment-poller register <path>` manages it) |
+| cron | user crontab | `weekly-hygiene` (Mon 06:07 — headless `.memory/` drain loops, doc-only, never pushes) and `pr-comment-poller` (every 15 min, 07–23h — headless `claude -p` run when new owner comments land on an open PR) |
+
+`bootstrap-machine.sh` is idempotent and rebuilds all of the above from the kit checkout in one run; its manual steps (SSH key, PAT, Claude login, repo registration) each run a confirm → verify → retry loop, so a fresh machine converges in a single pass. Re-run it after a kit update to refresh the deployed tools.

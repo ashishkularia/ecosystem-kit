@@ -78,21 +78,10 @@ Review changes for adherence to the project's conventions (`.memory/CONVENTIONS.
 - No TODO/FIXME without a linked issue in `.memory/ISSUES.md` or the tracker
 
 ## Devil's Advocate Analysis (standard ceremony and above)
-Run the four dimensions of `.memory/references/da-checklist.md` — architecture, security, performance, reliability — scoring each finding per `.claude/skills/devils-advocate.md`:
-
-| Severity | Points |
-|----------|--------|
-| Critical | 10 |
-| High | 5 |
-| Medium | 2 |
-| Low | 1 |
-
-| Total | Status | Action |
-|-------|--------|--------|
-| 0-5 | GREEN | Approve |
-| 6-15 | YELLOW | Approve with recommendations |
-| 16+ | RED | Request changes |
-| Any Critical | AUTO-BLOCK | Cannot approve until resolved |
+Run the `.memory/references/da-checklist.md` dimensions your ceremony level assigns — see
+"DA Scope by Ceremony" in `.claude/skills/devils-advocate.md`. Score each finding with the
+severity weights and risk thresholds defined there — that skill is the single home of the
+scoring tables.
 
 ## Output Format
 
