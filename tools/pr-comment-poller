@@ -161,6 +161,14 @@ def main():
             print("no new owner activity")
         return 0
 
+    # Headless auth: cron sessions cannot do interactive OAuth refresh — use
+    # the owner-provisioned long-lived token (`claude setup-token`) if present.
+    import os
+    env = dict(os.environ)
+    claude_tok = Path.home() / ".secrets" / "claude-oauth-token"
+    if "CLAUDE_CODE_OAUTH_TOKEN" not in env and claude_tok.is_file():
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = claude_tok.read_text().strip()
+
     for owner, repo, path, num, n in launches:
         log(f"{owner}/{repo}#{num}: {n} new owner comment(s) — launching claude in {path}")
         prompt = (
@@ -175,7 +183,7 @@ def main():
         try:
             with open(LOG, "a") as lf:
                 subprocess.run([CLAUDE, "-p", prompt], cwd=path, timeout=3600,
-                               stdout=lf, stderr=subprocess.STDOUT)
+                               env=env, stdout=lf, stderr=subprocess.STDOUT)
             log(f"{owner}/{repo}#{num}: claude run finished")
         except Exception as e:
             log(f"{owner}/{repo}#{num}: claude run failed: {e}")

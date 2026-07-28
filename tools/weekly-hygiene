@@ -15,6 +15,15 @@ set -uo pipefail
 CLAUDE="${CLAUDE_BIN:-$(command -v claude || echo "$HOME/.local/bin/claude")}"
 REGISTRY="$HOME/.claude/repo-registry"
 
+# Headless auth: cron sessions cannot do interactive OAuth refresh (the first
+# hygiene run failed with "OAuth session expired and could not be refreshed").
+# Use the owner-provisioned long-lived token when present (`claude setup-token`
+# -> ~/.secrets/claude-oauth-token, chmod 600).
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ -s "$HOME/.secrets/claude-oauth-token" ]; then
+  CLAUDE_CODE_OAUTH_TOKEN="$(cat "$HOME/.secrets/claude-oauth-token")"
+  export CLAUDE_CODE_OAUTH_TOKEN
+fi
+
 DRY=0
 [ "${1:-}" = "--dry-run" ] && { DRY=1; shift; }
 
