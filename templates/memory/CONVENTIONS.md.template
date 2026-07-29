@@ -15,6 +15,16 @@ it lands here in the same session — and as a red test where the stack allows
 - Decisions via `/decide`; observations → ISSUES; speculation → IDEAS;
   unverifiable changes → VERIFY with acceptance criteria.
 - No secrets in the repo; `.env*` and lockfiles are never hand-edited.
+- Accessibility is compulsory: WCAG 2.1 AA is a required quality gate (the
+  a11y gate in `.claude/kit.json`, wired into standard/full/critical), never
+  an audit afterthought. Every user-facing change passes it or records N/A
+  with justification (rule + smells: `references/engineering-principles.md` §9).
+- Design direction lives in-repo: the canonical design-direction document is
+  `.memory/references/design-direction*.md`. Every design decision updates the
+  repo doc FIRST, in the same session, docs-contract style; any published
+  claude.ai artifact is a mirror regenerated FROM the repo file afterwards —
+  never edited directly. (Why: account portability — the repo survives
+  account switches; a cloud artifact does not.)
 
 ## Code style
 

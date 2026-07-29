@@ -1,5 +1,6 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-07-29 — Two owner rules encoded at the source (feature/a11y-and-design): (1) accessibility compulsory — WCAG 2.1 AA a11y gate pattern in kit.config.example.{json,md} (G6, wired into standard/full/critical), Accessibility principle §9 in engineering-principles.md, MANDATORY a11y passes in reviewer.md + qa.md (N/A only with justification); (2) design direction lives in-repo — CONVENTIONS.md.template rule + /decide step 7: design decisions update .memory/references/design-direction* first, published claude.ai artifact is a regenerated mirror.
 - 2026-07-24 — Knowledge cleanup (chore/knowledge-cleanup): adaptive-ceremony.md becomes the single home of the level→pipeline mapping (express drift resolved: express review = builder's own session, never a spawned task); DA scoring, autonomy rule, handoff checklist, and the "red tests, not prose" mantra de-duplicated into single owners with pointers; diary-template absorbed into /diary and deleted; machine layer documented (README + ARCHITECTURE §11); stale identifiers fixed (HOOK_MODULES→discover_hook_modules, GitHub MCP matcher wording, kit-update qualifier).
 - 2026-07-24 — Machine layer versioned + bootstrap (owner: "would a fresh
   machine configure itself?" — it couldn't; now it can). `tools/` gains
