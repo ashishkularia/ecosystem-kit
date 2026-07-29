@@ -31,5 +31,24 @@ JSON cannot carry comments, so this file documents every key of `kit.config.exam
 
 - **Owner-only merges**: Claude never merges or writes to `main`/`master` anywhere, in any repo, full stop. `protected_branches` configures *which* branches; the rule itself is not configurable.
 - **Critical ⇒ human review**: the `critical` ceremony level always ends with owner sign-off, whatever gates it lists.
+- **Accessibility is compulsory** (owner rule, 2026-07-29): every profile for a project with any user-facing surface defines an a11y gate (WCAG 2.1 AA) and wires it into `standard`, `full`, and `critical` in `ceremony.levels`. See "The a11y gate" below. Not an audit afterthought — a required gate like tests or lint.
 - **Paths are repo-relative** everywhere in this file; hooks normalize absolute paths before matching.
 - **Profiles are seeds**: the installer copies `profiles/<name>.json` to `<repo>/.claude/kit.json` only if missing. After that the file is project-owned — edit it in the project, and promote generally-useful changes back to the kit profile via `/retro` → `/kit-update`.
+
+## The a11y gate
+
+**Definition**: a gate (any ID — the example uses `G6`; pick the next free ID in an existing profile) whose `desc` states the WCAG 2.1 AA pass criteria and whose `commands` name the stack's executable checks. Pass = zero serious/critical automated findings AND the reviewer's mandatory Accessibility Review checklist clean (`templates/agents/reviewer.md`). Changes with no user-facing surface record **N/A with one line of justification** in the gate result — the gate is never silently skipped.
+
+**Ceremony wiring**: `standard`, `full`, and `critical` list the a11y gate ID. `express` need not — but when the lint layer (e.g. `eslint-plugin-jsx-a11y` as errors inside the project's eslint config) rides in the code-standards gate / `quality_commands.lint`, even express changes get the static a11y check for free. Prefer that arrangement.
+
+**Per-stack command examples** (put the concrete command in the gate — a named command survives sessions; "remember to check a11y" does not):
+
+| Stack | Gate `commands` examples |
+|-------|--------------------------|
+| React/JSX | `npx eslint <src> --max-warnings 0` (config extends `plugin:jsx-a11y/recommended`, rules as errors) + `npx axe <url> --exit`, or `@axe-core/playwright` assertions in E2E |
+| Vue | same, with `eslint-plugin-vuejs-accessibility` |
+| Laravel Blade / server-rendered | axe against rendered pages (Dusk/Playwright + `@axe-core/*`), or `npx pa11y <url>`; `htmlhint` with a11y rules over compiled output where template linting fits better |
+| Static/docs sites | `npx pa11y-ci` over the built HTML |
+| No tooling available for the stack | `commands: []` — a judgment gate against the reviewer checklist; it still must PASS |
+
+Principle text, smells, and the full enforcement mapping live in `templates/memory/references/engineering-principles.md` §9.

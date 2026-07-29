@@ -21,3 +21,8 @@ conversation; if genuinely ambiguous which call is meant, ask).
    test in the same session (escalation path + watermark pattern:
    `.memory/references/engineering-principles.md`). Mirror pure style rules
    into `.memory/CONVENTIONS.md`.
+7. Design decisions (visual direction, typography, color, spacing, layout,
+   component idioms) also update `.memory/references/design-direction*` in
+   the same session — the repo doc is canonical and moves FIRST; any
+   published claude.ai artifact is a mirror, regenerated FROM the repo file
+   afterwards, never edited directly.

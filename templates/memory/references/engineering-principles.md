@@ -137,6 +137,39 @@ do one thing; nesting stays shallow; formatting is the machine's job, not a deba
 builder every cycle, verified by reviewer, gated before commit by ops;
 `guard_commit_message` keeps history readable too (Conventional Commits, advisory).
 
+## 9. Accessibility — WCAG 2.1 AA
+
+**Rule**: Every user-facing surface meets WCAG 2.1 AA. Accessibility is a **required
+quality gate wired into ceremony levels, not an audit afterthought** (owner rule,
+2026-07-29). Semantic HTML before ARIA; every interactive element keyboard-operable with
+a visible focus state; every input labelled; contrast ≥ 4.5:1 for text (3:1 for large
+text and UI components); color never the only signal; honest alt text (empty `alt=""`
+for decorative images); dynamic status changes announced (`aria-live`) where users would
+otherwise miss them.
+
+**Smells**:
+- `div`/`span` with an `onClick` where a `button` or `a` belongs
+- Icon-only buttons with no accessible name; inputs with placeholder-as-label
+- `outline: none` with no replacement focus style; modals that trap neither focus nor Escape
+- Meaning carried by color alone ("errors are red" and nothing else)
+- ARIA bolted on to fix what a semantic element would have given for free
+
+**Enforced by**: the **a11y gate** in `kit.json` `gates`, wired into ceremony levels
+(pattern: `kit.config.example.md` §"The a11y gate"); reviewer's mandatory Accessibility
+Review pass; QA's accessibility verification. Per-stack executable layer — name the
+concrete command in the gate wherever the stack allows one:
+
+| Stack | Static (lint-time) | Rendered (runtime) |
+|-------|--------------------|--------------------|
+| React/JSX | `eslint-plugin-jsx-a11y` in the eslint config, errors not warnings | `@axe-core/playwright` in E2E, or `npx axe <url> --exit` |
+| Vue | `eslint-plugin-vuejs-accessibility` | same axe options as React |
+| Blade / server-rendered HTML | template linting where available (`htmlhint` with a11y rules on compiled output) | axe against rendered pages (Dusk/Playwright), or `npx pa11y <url>` |
+| Static/docs sites | — | `npx pa11y-ci` / axe CLI over built HTML |
+
+Where the stack has no automated tooling, the gate stays a judgment gate (empty
+`commands`) checked against the reviewer's accessibility checklist — **it still must
+PASS**; "no tool" never means "no gate".
+
 ---
 
 ## Enforcement Map (quick reference)
@@ -151,3 +184,4 @@ builder every cycle, verified by reviewer, gated before commit by ops;
 | Structured logging | `guard_principles` (logging) | advisory | `secret_scanner` (blocking) |
 | Dead code | `guard_principles` (dead_code) | advisory | reviewer hygiene check |
 | Clean code | — | via quality gates | `quality_commands` in every gate |
+| Accessibility | — (gate-enforced) | a11y gate blocks at its ceremony levels | reviewer mandatory a11y pass + QA verification |

@@ -43,7 +43,7 @@ Develop the test strategy, verify authorization and isolation enforcement, decid
   - **Unit**: pure logic, calculations, single-component behavior
   - **Integration**: one boundary crossing (endpoint + auth + persistence; component + data hook)
   - **End-to-end**: multi-step journeys spanning several boundaries — reserve for critical flows; don't duplicate what unit/integration already prove
-- Prioritize by risk: data isolation > authorization > money/scoring/state-machine logic > validation > UI polish
+- Prioritize by risk: data isolation > authorization > money/scoring/state-machine logic > validation > accessibility > UI polish (accessibility is a required gate, not polish — it can fail the verdict)
 - Define test data needs (factories/fixtures) and execution order
 
 ### 2. Isolation & Authorization Verification (when the project has multi-user or multi-tenant data)
@@ -62,7 +62,16 @@ Develop the test strategy, verify authorization and isolation enforcement, decid
 - Identify untested code paths; focus on high-risk uncovered areas (auth, money, data mutation, state machines)
 - Do not chase 100% — chase meaningful coverage of critical paths
 
-### 5. Mutation Testing (critical paths, full/critical ceremony)
+### 5. Accessibility Verification — MANDATORY for user-facing changes (WCAG 2.1 AA)
+Every QA pass over a change with a user-facing surface includes this; otherwise record
+**N/A with one line of justification**. Never silently skipped.
+- Run the a11y gate's `commands` from `kit.json` `gates` — zero serious/critical automated findings
+- Keyboard-only pass through every new/changed flow: reachable, operable, visible focus, no traps
+- Names/roles/labels sanity check on new UI: inputs labelled, icon buttons named, images alt-texted
+- Async states verified accessible: loading/success/error announced, not color-only
+- Findings are bugs (severity per user impact), not polish suggestions
+
+### 6. Mutation Testing (critical paths, full/critical ceremony)
 - Manually flip operators (`>` ↔ `>=`, `==` ↔ `!=`), boundaries (±1), and booleans in critical logic
 - A surviving mutant = a test gap on a critical path — report it as a finding
 
@@ -86,6 +95,14 @@ Develop the test strategy, verify authorization and isolation enforcement, decid
 | Lists scoped to caller | PASS/FAIL |
 | Role matrix enforced | PASS/FAIL |
 
+## Accessibility Results (WCAG 2.1 AA) — or N/A: <one-line justification>
+| Check | Status |
+|-------|--------|
+| Automated scan (a11y gate commands) | PASS/FAIL |
+| Keyboard-only flows | PASS/FAIL |
+| Names/roles/labels | PASS/FAIL |
+| Async states accessible | PASS/FAIL |
+
 ## Coverage Analysis
 - Critical-path coverage assessment; uncovered areas of concern
 
@@ -106,6 +123,7 @@ Severity / steps / expected / actual / suggested fix
 ## Checklist
 - [ ] Every acceptance criterion mapped to at least one test
 - [ ] Isolation tested in both directions where multi-user data exists
+- [ ] Accessibility verified (WCAG 2.1 AA) for every user-facing change — or N/A justified in the report
 - [ ] Failure categorization done (bug vs flake vs environment)
 - [ ] Critical paths identified and their coverage assessed
 - [ ] Bugs and open verification items flagged for `.memory/ISSUES.md` / `.memory/VERIFY.md`

@@ -13,7 +13,7 @@ T2 — Verification. Reviews code but does NOT write production code.
 ## Agent Contract
 - **Inputs**: Implementation artifacts from builder(s)
 - **Outputs**: Review report with pass/fail per category, Devil's Advocate analysis with risk score
-- **Quality gates owned**: The code-standards and security gates (IDs per `kit.json` `gates`)
+- **Quality gates owned**: The code-standards, security, and accessibility gates (IDs per `kit.json` `gates`)
 - **Escalation triggers**: Critical security issue, >5 convention violations, DA risk score RED (16+)
 
 ## First Steps
@@ -73,7 +73,20 @@ Review changes for adherence to the project's conventions (`.memory/CONVENTIONS.
 - Edge cases: empty, null, boundary values
 - No tests that merely restate the implementation
 
-### 8. Hygiene Check
+### 8. Accessibility Review — MANDATORY (WCAG 2.1 AA)
+Not optional and not ceremony-dependent: every review either completes this section or
+records **N/A with one line of justification** (change has no user-facing surface).
+Never silently skipped.
+- Run the a11y gate's `commands` from `kit.json` `gates` — zero serious/critical findings
+- Interactive controls are semantic elements (`button`/`a`/`input` — no click-handler `div`s)
+- Every input has a label; icon-only controls have an accessible name
+- Full keyboard operability: focus visible, order sensible, no traps; modals trap focus and close on Escape
+- Contrast meets AA (4.5:1 text, 3:1 large text / UI components); color is never the only signal
+- Images: informative alt text, or empty `alt=""` when decorative
+- Async/dynamic status changes are announced (`aria-live`) where users would otherwise miss them
+- Full principle + smells: `.memory/references/engineering-principles.md` §9
+
+### 9. Hygiene Check
 - No debug statements, no commented-out code blocks, no dead files
 - No TODO/FIXME without a linked issue in `.memory/ISSUES.md` or the tracker
 
@@ -108,6 +121,7 @@ Risk score: <N> — GREEN/YELLOW/RED
 ## Checklist Results
 - Static analysis (per kit.json quality_commands): PASS/FAIL per command
 - Security: <items>
+- Accessibility (WCAG 2.1 AA): <items> — or N/A: <one-line justification>
 - Performance: <items>
 - Tests: <items>
 

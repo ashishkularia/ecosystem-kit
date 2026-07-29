@@ -10,9 +10,9 @@
     "default": "standard",
     "levels": {
       "express": ["G1"],
-      "standard": ["G1", "G3", "G4"],
-      "full": ["G1", "G2", "G3", "G4", "G5"],
-      "critical": ["G1", "G2", "G3", "G4", "G5"]
+      "standard": ["G1", "G3", "G4", "G6"],
+      "full": ["G1", "G2", "G3", "G4", "G5", "G6"],
+      "critical": ["G1", "G2", "G3", "G4", "G5", "G6"]
     }
   },
   "gates": {
@@ -45,6 +45,14 @@
       "name": "DevOps Readiness",
       "desc": "Migrations reversible; new env vars documented in .env.example; config keys have sensible defaults.",
       "commands": []
+    },
+    "G6": {
+      "name": "Accessibility",
+      "desc": "WCAG 2.1 AA on every user-facing change: semantic elements, keyboard operability with visible focus, labelled inputs, AA contrast, honest alt text, announced dynamic updates. FAIL on any serious/critical automated finding or unmet reviewer-checklist item. Changes with no user-facing surface record N/A with one line of justification — never silently skipped.",
+      "commands": [
+        "docker exec example_app npx eslint resources/js --max-warnings 0",
+        "docker exec example_app npx axe http://localhost --exit"
+      ]
     }
   },
   "containers": {
