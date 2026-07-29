@@ -1,0 +1,4 @@
+.memory/CHANGELOG.md merge=union
+.memory/DECISIONS.md merge=union
+.memory/DOCS-CHANGELOG.md merge=union
+.memory/diary/*.md merge=union
