@@ -10,7 +10,7 @@ How the ecosystem-kit works: what gets installed, how the engine runs, which hoo
 ├── .claude/             MACHINERY — kit-owned, refreshed by update.sh
 │   ├── kit.json         per-project profile (seeded from kit profiles/, then project-owned)
 │   ├── kit-version      kit version stamp (tracked)
-│   ├── settings.json    hook wiring — relative commands only
+│   ├── settings.json    hook wiring — cwd-independent commands ($CLAUDE_PROJECT_DIR)
 │   ├── settings.local.json  per-machine, untracked (autoMemoryDirectory → <repo>/.memory/auto)
 │   ├── hooks/           engine copy (minus tests/)
 │   └── commands/ agents/ skills/   templates copy, project-customizable
@@ -45,7 +45,9 @@ This works identically in headless runs (`claude -p`, CI, scheduled agents) — 
 ## 3. Engine: daemon + client
 
 ```
-settings.json ──► python3 .claude/hooks/_client.py <hook>
+settings.json ──► python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>
+                        │    ($CLAUDE_PROJECT_DIR = project root, set by Claude
+                        │     Code on every hook run — wiring is cwd-independent)
                         │
                         ├─ Unix socket at .claude/hooks/.daemon.sock (0.5s connect / 45s response)
                         │        └─► _daemon.py: warm interpreter, EXEC_LOCK serialization,

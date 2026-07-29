@@ -24,7 +24,7 @@ The ecosystem loads at **every** session start, regardless of task. The `session
 The same guarantee holds for non-interactive sessions (`claude -p`, CI, scheduled agents): SessionStart fires there too, so a headless run gets the identical banner and `always_load` instruction with zero manual setup. Corollaries the kit commits to:
 
 - `install.sh` is non-interactive and idempotent — safe in a bootstrap script, safe to re-run.
-- Hook wiring in `settings.json` uses **relative** commands (`python3 .claude/hooks/_client.py <hook>`), so nothing depends on where the repo is cloned.
+- Hook wiring in `settings.json` uses **cwd-independent** commands (`python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>`) — Claude Code sets `$CLAUDE_PROJECT_DIR` to the project root on every hook run, so nothing depends on where the repo is cloned *or* on the session's current working directory.
 - The engine is stdlib-only Python 3 — no pip, no venv, no network needed to boot.
 - If the hook daemon isn't running, `_client.py` falls back to direct execution; a cold clone still enforces every gate.
 

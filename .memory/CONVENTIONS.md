@@ -3,7 +3,7 @@
 - Python: stdlib ONLY, `python3`, no pip/venv. Tests use `unittest` (pytest may not exist on hosts). Hooks live flat in `engine/hooks/`; `_`-prefixed files are infrastructure, everything else is a dispatchable hook module.
 - Shell: bash with `set -euo pipefail` (`health-check.sh` deliberately drops `-e` — its checks are expected to fail without aborting the run). `shopt -s nullglob` before glob loops.
 - JSON in shell: always python3 heredocs/one-liners, never jq (not installed on hosts).
-- Hook wiring: relative commands only — `python3 .claude/hooks/_client.py <hook>` — and ONLY in `.claude/settings.json`. No hooks blocks in settings.local.json or user-level settings.
+- Hook wiring: cwd-independent commands only — `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>` — and ONLY in `.claude/settings.json`. No hooks blocks in settings.local.json or user-level settings. Never bare-relative (`python3 .claude/...`): it resolves against the shell's cwd and fails whenever a session's persistent cwd drifts out of the repo root.
 - Install semantics: copy, never symlink. Engine overwrite is OK (kit-owned); knowledge (`.memory/`, `kit.json`, existing `settings.json`, `CLAUDE.md`) is never clobbered.
 - Dates: ISO `YYYY-MM-DD` everywhere — DECISIONS entries, diary filenames, changelogs.
 - No secrets in any kit file or installed file, ever.
