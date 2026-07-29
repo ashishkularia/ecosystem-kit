@@ -111,21 +111,25 @@ def main():
                 continue  # only real conflicts; 'behind'/'blocked'/'unstable'/'unknown' left alone
             key = f"{owner}/{repo}#{num}"
             sig = f"{head.get('sha')}::{base.get('sha')}"
-            if state.get(key) == sig:
-                continue  # already attempted this exact head/base pair
-            state[key] = sig
-            if mode != "check":
-                launches.append((owner, repo, path, num, head.get("ref"), base.get("ref")))
-            else:
+            already = state.get(key) == sig  # attempted this exact head/base before
+            if mode == "check":
+                # STRICTLY read-only — never mutate/persist state (a dry-run that
+                # consumes the events it previews is a bug; learned on the poller).
                 found_dirty.append(key)
-                print(f"would resolve: {key} (dirty; head {head.get('ref')} vs base {base.get('ref')})")
+                note = "  [already attempted]" if already else ""
+                print(f"would resolve: {key} (dirty; head {head.get('ref')} vs base {base.get('ref')}){note}")
+                continue
+            if already:
+                continue
+            state[key] = sig
+            launches.append((owner, repo, path, num, head.get("ref"), base.get("ref")))
 
-    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
     if mode == "check":
         if not found_dirty:
             print("no conflicting PRs")
         return 0
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
 
     for owner, repo, path, num, head_ref, base_ref in launches:
         nonce = secrets.token_hex(4)
