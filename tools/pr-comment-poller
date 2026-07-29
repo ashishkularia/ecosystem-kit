@@ -38,12 +38,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TRIGGER_AUTHOR = "ashishkularia"   # the human whose comments summon a session
-# Loop protection: Claude's replies post under the owner's PAT (same author),
-# so replies carry an INVISIBLE HTML-comment marker — GitHub never renders it,
-# humans see a clean reply, the poller still filters it. LEGACY_MARKER keeps
-# old visibly-signed replies filtered too.
-MARKER = "<!-- claude -->"
-LEGACY_MARKER = "—claude"
+# Loop protection + provenance (owner review, PR #5): automated replies end
+# with "GunAsh-<run-nonce>" — the poller mints the nonce per launch, so every
+# reply is traceable to its run in the log, and the filter below skips any
+# comment carrying the pattern. Legacy markers stay filtered.
+MARKER_RE = re.compile(r"GunAsh-[A-Za-z0-9]+")
+LEGACY_MARKERS = ("\u2014claude", "<!-- claude -->")
 CLAUDE = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
 TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
 REGISTRY = Path.home() / ".claude" / "repo-registry"
@@ -143,8 +143,8 @@ def main():
                         if c.get("user", {}).get("login") != TRIGGER_AUTHOR:
                             continue
                         body = c.get("body") or ""
-                        if MARKER in body or body.rstrip().endswith(LEGACY_MARKER):
-                            continue  # our own reply (invisible or legacy marker)
+                        if MARKER_RE.search(body) or any(m in body for m in LEGACY_MARKERS):
+                            continue  # our own reply (GunAsh- or legacy marker)
                         if c.get("created_at", "") > last:
                             fresh.append(c)
                 except Exception as e:
@@ -176,16 +176,19 @@ def main():
         env["CLAUDE_CODE_OAUTH_TOKEN"] = claude_tok.read_text().strip()
 
     for owner, repo, path, num, n in launches:
-        log(f"{owner}/{repo}#{num}: {n} new owner comment(s) — launching claude in {path}")
+        import secrets
+        nonce = secrets.token_hex(4)
+        marker = f"GunAsh-{nonce}"
+        log(f"{owner}/{repo}#{num}: {n} new owner comment(s) — launching claude in {path} [{marker}]")
         prompt = (
             f"The owner left new review comments on PR #{num} of {owner}/{repo}. "
             f"Run /pr-babysit for that PR: read every unresolved review thread and PR "
             f"comment, address each one — doc/.memory changes may be made directly; for "
             f"code changes work in a git worktree of the PR branch and never switch "
             f"branches in this live checkout — push via /home/ubuntu/.claude/bin/safe-push, "
-            f"and reply to each addressed thread. Write replies with NO visible signature "
-            f"or attribution; append the invisible HTML comment '{MARKER}' as the last "
-            f"line of every reply body (GitHub does not render it — it is loop protection). "
+            f"and reply to each addressed thread. End every reply you post with "
+            f"'{marker}' on its own last line — it identifies automated replies and "
+            f"is the poller's loop protection. No other signature or attribution. "
             f"Never merge anything; the owner merges."
         )
         try:
