@@ -9,9 +9,10 @@ the same in every repo.
 Filesystem anchors
 ------------------
 Hooks live at ``<repo>/.claude/hooks/``. realpath() is load-bearing: hooks are
-invoked through ``python3 .claude/hooks/_client.py <hook>`` and may be reached
-via a symlink, so a plain abspath(__file__) can walk to the wrong root. Every
-hook that needs the repo root must import these rather than re-deriving them.
+invoked through ``python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py"
+<hook>`` and may be reached via a symlink, so a plain abspath(__file__) can
+walk to the wrong root. Every hook that needs the repo root must import these
+rather than re-deriving them (never from the shell cwd, which can drift).
 """
 
 import json

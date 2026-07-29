@@ -1,5 +1,6 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-07-29 — Hook wiring made cwd-independent (fix/hook-cwd-wiring): settings.json.template commands now `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>` (was bare-relative, which broke every hook when a session's persistent shell cwd drifted into a subdirectory); health-check accepts the new prefix (legacy relative still tolerated), docs/README/CLAUDE/CONVENTIONS + engine docstrings updated; obsoletes the rejected forwarding-shim workaround.
 - 2026-07-29 — `tools/kit-propagate`: kit changes now flow to every registered
   repo as automatic update PRs (owner still merges). Daily cron; per repo:
   worktree off origin default → update.sh → policy patches (attribution off)

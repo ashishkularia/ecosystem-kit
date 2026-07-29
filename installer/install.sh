@@ -192,7 +192,7 @@ else
   echo "  kit.json: written from profiles/$PROFILE_NAME.json (now project-owned)"
 fi
 
-# ── 5. settings.json (hook wiring, relative commands) ───────────────
+# ── 5. settings.json (hook wiring, cwd-independent $CLAUDE_PROJECT_DIR commands) ─
 SETTINGS_TPL="$KIT_ROOT/templates/settings.json.template"
 if [ ! -f "$SETTINGS_TPL" ]; then
   echo "  WARN: templates/settings.json.template missing from kit — settings.json not managed"

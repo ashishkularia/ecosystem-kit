@@ -136,9 +136,10 @@ else
   fi
 
   # Parity trick: the last whitespace token of each hook command is the hook
-  # name ("python3 .claude/hooks/_client.py session_boot" -> "session_boot").
-  # The daemon derives HOOK_MODULES by globbing the hooks dir, so the glob IS
-  # the module roster: settings wiring must match it exactly.
+  # name ('python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" session_boot'
+  # -> "session_boot") — unaffected by the command prefix. The daemon derives
+  # HOOK_MODULES by globbing the hooks dir, so the glob IS the module roster:
+  # settings wiring must match it exactly.
   wiring_report=$(python3 - <<'PYEOF'
 import json, os
 problems = []
@@ -147,7 +148,14 @@ try:
 except (OSError, ValueError):
     raise SystemExit  # already reported above
 wired = set()
-non_relative = []
+bad_prefix = []
+# Canonical wiring is cwd-independent via $CLAUDE_PROJECT_DIR (set by Claude
+# Code on every hook run); the bare relative form is tolerated for installs
+# that predate the cwd fix but breaks when the session cwd leaves the repo root.
+ALLOWED_PREFIXES = (
+    'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py"',
+    "python3 .claude/hooks/_client.py",
+)
 for groups in (settings.get("hooks") or {}).values():
     for g in groups:
         for h in g.get("hooks", []):
@@ -157,21 +165,21 @@ for groups in (settings.get("hooks") or {}).values():
             parts = cmd.split()
             if parts:
                 wired.add(parts[-1])
-            if not cmd.startswith("python3 .claude/hooks/_client.py"):
-                non_relative.append(cmd)
+            if not cmd.startswith(ALLOWED_PREFIXES):
+                bad_prefix.append(cmd)
 modules = {f[:-3] for f in os.listdir(".claude/hooks")
            if f.endswith(".py") and not f.startswith("_")}
 if modules - wired:
     problems.append("hook modules on disk but not wired: " + ", ".join(sorted(modules - wired)))
 if wired - modules:
     problems.append("wired but no hook module on disk: " + ", ".join(sorted(wired - modules)))
-if non_relative:
-    problems.append("non-relative hook command(s): " + " | ".join(non_relative))
+if bad_prefix:
+    problems.append("unrecognized hook command prefix: " + " | ".join(bad_prefix))
 print("; ".join(problems))
 PYEOF
 )
   if [ -z "$wiring_report" ]; then
-    ok "settings.json wiring == hook-module glob (relative commands)"
+    ok "settings.json wiring == hook-module glob (cwd-independent commands)"
   else
     err "wiring drift: $wiring_report"
   fi

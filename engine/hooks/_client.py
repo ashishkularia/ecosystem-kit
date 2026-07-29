@@ -5,7 +5,12 @@ Connects to the hook daemon (fast path) and falls back to direct execution of
 the hook file if the daemon is unavailable.
 
 Usage (wired from .claude/settings.json):
-    python3 .claude/hooks/_client.py <hook_name>
+    python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook_name>
+
+$CLAUDE_PROJECT_DIR is set by Claude Code to the project root on every hook
+run, making the wiring independent of the session's current working directory.
+The engine itself derives its paths from realpath(__file__), so this file
+needs no knowledge of how it was invoked.
 
 Fail-open vs fail-closed
 ------------------------
