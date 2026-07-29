@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""pr-rebase — keep open PRs mergeable by resolving conflicts, on a cron.
+
+Owner ask (2026-07-29): "identify merge conflicts in PRs and rebase them to
+resolve." Cheap detection (GitHub API, no AI) finds PRs whose mergeable_state
+is 'dirty' (real conflicts with the base); for each NEW conflict state it
+launches ONE headless `claude -p` that rebases the PR's head branch onto the
+base, resolves conflicts WITH understanding, runs the repo gate, and — only if
+green — force-pushes-with-lease. If it can't confidently resolve or the gate
+fails, it aborts and comments; it NEVER merges and NEVER touches the base.
+
+Why AI, not `git rebase -X theirs`: blindly picking a side on a code conflict
+ships wrong logic. Conflict resolution needs judgment, so it gets a session —
+the same cheap-detect / AI-only-when-needed shape as pr-comment-poller.
+
+Bounds: head must be in the same repo (not a fork); force-push only via
+safe-push --force-with-lease, which still refuses the default branch; state is
+keyed by (pr, head_sha, base_sha) so an unresolvable conflict is attempted
+once, not every run. `check` mode is strictly read-only.
+
+Credential: ~/.secrets/github-pat (owner-provisioned). Headless auth:
+~/.secrets/claude-oauth-token when present.
+"""
+import json
+import re
+import secrets
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+TRIGGER = "ashishkularia"
+CLAUDE = "/home/ubuntu/.local/bin/claude"
+SAFE_PUSH = "/home/ubuntu/.claude/bin/safe-push"
+TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
+CLAUDE_TOKEN = Path.home() / ".secrets" / "claude-oauth-token"
+REGISTRY = Path.home() / ".claude" / "repo-registry"
+STATE_PATH = Path.home() / ".claude" / "pr-rebase-state.json"
+LOG = Path.home() / ".claude" / "pr-rebase.log"
+REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
+
+
+def log(msg):
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(LOG, "a") as f:
+        f.write(f"{stamp} {msg}\n")
+    print(msg)
+
+
+def registered_paths():
+    if not REGISTRY.exists():
+        return []
+    return [ln.split("#")[0].strip() for ln in REGISTRY.read_text().splitlines()
+            if ln.split("#")[0].strip()]
+
+
+def repo_coords(path):
+    r = subprocess.run(["git", "-C", path, "remote", "get-url", "origin"],
+                       capture_output=True, text=True, timeout=10)
+    m = REMOTE_RE.search(r.stdout.strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def api(tok, path):
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json",
+                 "User-Agent": "pr-rebase"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read())
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "run"
+    if not TOKEN_FILE.exists():
+        print(f"no token at {TOKEN_FILE}"); return 1
+    tok = TOKEN_FILE.read_text().strip()
+    state = json.loads(STATE_PATH.read_text()) if STATE_PATH.exists() else {}
+    import os
+    env = dict(os.environ)
+    if "CLAUDE_CODE_OAUTH_TOKEN" not in env and CLAUDE_TOKEN.is_file():
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = CLAUDE_TOKEN.read_text().strip()
+
+    launches = []
+    for path in registered_paths():
+        coords = repo_coords(path)
+        if not coords:
+            continue
+        owner, repo = coords
+        try:
+            prs = api(tok, f"/repos/{owner}/{repo}/pulls?state=open&per_page=30")
+        except Exception as e:
+            log(f"{owner}/{repo}: list error {e}"); continue
+        for stub in prs:
+            if stub.get("draft"):
+                continue
+            num = stub["number"]
+            try:
+                pr = api(tok, f"/repos/{owner}/{repo}/pulls/{num}")  # single GET populates mergeable_state
+            except Exception as e:
+                log(f"{owner}/{repo}#{num}: get error {e}"); continue
+            ms = pr.get("mergeable_state")
+            head = pr.get("head", {})
+            base = pr.get("base", {})
+            # same-repo head only (never touch fork branches)
+            if (head.get("repo") or {}).get("full_name") != f"{owner}/{repo}":
+                continue
+            if ms != "dirty":
+                continue  # only real conflicts; 'behind'/'blocked'/'unstable'/'unknown' left alone
+            key = f"{owner}/{repo}#{num}"
+            sig = f"{head.get('sha')}::{base.get('sha')}"
+            if state.get(key) == sig:
+                continue  # already attempted this exact head/base pair
+            state[key] = sig
+            if mode != "check":
+                launches.append((owner, repo, path, num, head.get("ref"), base.get("ref")))
+            else:
+                print(f"would resolve: {key} (dirty; head {head.get('ref')} vs base {base.get('ref')})")
+
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
+    if mode == "check":
+        if not launches:
+            print("no conflicting PRs")
+        return 0
+
+    for owner, repo, path, num, head_ref, base_ref in launches:
+        nonce = secrets.token_hex(4)
+        marker = f"GunAsh-{nonce}"
+        log(f"{owner}/{repo}#{num}: dirty — launching rebase resolver [{marker}]")
+        prompt = (
+            f"PR #{num} of {owner}/{repo} has merge conflicts with its base "
+            f"(mergeable_state=dirty). Head branch: {head_ref}. Base branch: {base_ref}.\n\n"
+            f"In a git WORKTREE of the head branch (never the live checkout, never switch "
+            f"branches here): git fetch, then rebase {head_ref} onto origin/{base_ref}. "
+            f"Resolve each conflict by UNDERSTANDING both sides — preserve the PR's intent "
+            f"and integrate the base's newer changes; never blindly pick a side on logic. "
+            f"After a clean rebase, run the repo gate: bash /home/ubuntu/ecosystem-kit/"
+            f"scripts/health-check.sh plus any test command in .claude/kit.json "
+            f"quality_commands. If GREEN, publish with:  /home/ubuntu/.claude/bin/safe-push "
+            f"-C <worktree> --force-with-lease origin {head_ref}  (force-with-lease is now "
+            f"allowed to feature branches; it refuses if the remote moved unseen, and "
+            f"safe-push still refuses the default branch). Then reply on the PR summarizing "
+            f"what conflicts you resolved.\n\n"
+            f"If conflicts can't be confidently resolved OR the gate fails: git rebase "
+            f"--abort, change nothing, and comment on the PR listing exactly which files/"
+            f"hunks need manual resolution. Either way end every comment with '{marker}' on "
+            f"its last line. NEVER merge; NEVER push or rewrite the base branch."
+        )
+        try:
+            with open(LOG, "a") as lf:
+                subprocess.run([CLAUDE, "-p", prompt], cwd=path, timeout=5400,
+                               env=env, stdout=lf, stderr=subprocess.STDOUT)
+            log(f"{owner}/{repo}#{num}: resolver finished")
+        except Exception as e:
+            log(f"{owner}/{repo}#{num}: resolver failed: {e}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

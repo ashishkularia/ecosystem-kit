@@ -6,7 +6,10 @@
 #   - updating an EXISTING remote default branch (main/master) is owner-only
 #   - feature branches and the FIRST publish of a repo (remote default branch
 #     does not exist yet) are allowed — that's how new repos get backed up
-#   - no force pushes, no deletions, ever
+#   - --force-with-lease / --force-if-includes ARE allowed (needed for rebase
+#     conflict resolution) — but ONLY to non-default branches; the protected-
+#     branch check below runs first, so a lease to main/master is still refused.
+#   - bare --force / -f / --mirror / --delete / --prune: never (blind rewrite)
 #
 # Usage: safe-push [-C <repo-dir>] [remote] [refspec...]
 #        (defaults: current dir, origin, current branch)
@@ -25,8 +28,10 @@ refspecs=()
 passthru=()
 for arg in "$@"; do
   case "$arg" in
-    -f|--force|--force-with-lease*|--force-if-includes|--mirror|--delete|-d|--prune)
-      die "'$arg' rewrites or deletes remote history; do it yourself if you really mean it." ;;
+    -f|--force|--mirror|--delete|-d|--prune)
+      die "'$arg' blindly rewrites/deletes remote history; use --force-with-lease, or do it yourself." ;;
+    --force-with-lease|--force-with-lease=*|--force-if-includes)
+      passthru+=("$arg") ;;   # safe force: aborts if the remote moved unseen; still gated by the protected-branch check below
     -u|--set-upstream|--tags|--follow-tags) passthru+=("$arg") ;;
     -*) die "unrecognised flag '$arg' (safe-push accepts -u/--tags only)." ;;
     *) if [ "$remote" = "origin" ] && [ ${#refspecs[@]} -eq 0 ] && git remote get-url "$arg" >/dev/null 2>&1; then

@@ -7,6 +7,15 @@
   also blocked the pr-rebase automation's own worktree flow. Now the branch
   actually being rewritten is evaluated; feature rebases pass, on-main
   rebases/merges/pushes still blocked. 10-case test incl. real worktree.
+- 2026-07-29 — `tools/pr-rebase` + force-with-lease: a cron detects open PRs whose
+  mergeable_state is 'dirty' (real base conflicts) and launches ONE headless
+  session per new conflict to rebase onto base, resolve WITH understanding, run
+  the gate, and (only if green) force-push-with-lease; aborts + comments
+  otherwise. Never merges, never touches base. safe-push now allows
+  --force-with-lease / --force-if-includes (bare --force/-f/--mirror/--delete
+  still refused; protected-branch check runs first so lease-to-main is still
+  refused). guard_dangerous_commands: bare force blocked, lease/if-includes
+  allowed (negative-lookahead regex). `check` mode read-only.
 - 2026-07-29 — Hook wiring made cwd-independent (fix/hook-cwd-wiring): settings.json.template commands now `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>` (was bare-relative, which broke every hook when a session's persistent shell cwd drifted into a subdirectory); health-check accepts the new prefix (legacy relative still tolerated), docs/README/CLAUDE/CONVENTIONS + engine docstrings updated; obsoletes the rejected forwarding-shim workaround.
 - 2026-07-29 — `tools/kit-propagate`: kit changes now flow to every registered
   repo as automatic update PRs (owner still merges). Daily cron; per repo:

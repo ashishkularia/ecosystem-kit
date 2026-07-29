@@ -133,7 +133,10 @@ ALLOWED_PASSWORD_VALUES = {"password", "secret", "", "changeme", "example"}
 # Destructive git patterns (used by guard_dangerous_commands.py).
 DESTRUCTIVE_GIT_PATTERNS = [
     r"git\s+push\s+-f\b",
-    r"git\s+push\s+.*--force",
+    # Bare --force blindly overwrites; --force-with-lease / --force-if-includes
+    # are the SAFE forms (abort if the remote moved unseen) and are allowed —
+    # needed for rebase conflict resolution. Negative lookahead lets them pass.
+    r"git\s+push\s+.*--force(?!-with-lease|-if-includes)\b",
     r"git\s+reset\s+--hard",
     r"git\s+clean\s+-f",
     r"git\s+checkout\s+\.\s*($|[;&|])",
