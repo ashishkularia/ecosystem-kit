@@ -194,21 +194,69 @@ def branch_after_checkout(subcommand, args):
     return None
 
 
-def check_bash_command(command, protected, current_branch):
-    """Returns (blocked, reason)."""
+def _dash_C_dir(tokens):
+    """The `-C <dir>` value from a git token list (before the subcommand), or None."""
+    i = 1
+    while i < len(tokens):
+        t = tokens[i]
+        if t == "-C" and i + 1 < len(tokens):
+            return tokens[i + 1].strip('"').strip("'")
+        if t in GIT_GLOBAL_VALUE_FLAGS:
+            i += 2
+            continue
+        if t.startswith("-"):
+            i += 1
+            continue
+        break  # reached the subcommand
+    return None
+
+
+def _resolve(cwd, target):
+    return target if os.path.isabs(target) else os.path.normpath(os.path.join(cwd, target))
+
+
+def check_bash_command(command, protected, current_branch, start_cwd=None):
+    """Returns (blocked, reason).
+
+    Tracks the branch actually being rewritten across the command chain via
+    THREE mechanisms: `git checkout/switch` (branch change in place), `cd`
+    (working repo change — recompute branch from the new dir), and per-command
+    `git -C <dir>`. Without cd/-C tracking, a rebase inside a feature-branch
+    worktree launched from a session whose repo sits on a protected branch was
+    wrongly blocked (the effective branch stayed the session repo's). Rebasing
+    a feature branch onto main rewrites the FEATURE branch, so it is allowed;
+    rebasing while genuinely on a protected branch stays blocked.
+    """
     effective = (current_branch or "").strip().lower()
+    cwd = start_cwd or PROJECT_ROOT
 
     for sub in split_shell_commands(command):
+        tokens = tokenize(sub)
+
+        # `cd <dir>` moves the working repo — re-derive the effective branch.
+        if tokens and tokens[0] == "cd" and len(tokens) >= 2 and not tokens[1].startswith("-"):
+            cwd = _resolve(cwd, tokens[1].strip('"').strip("'"))
+            b = get_current_branch(cwd)
+            if b:
+                effective = b.strip().lower()
+            continue
+
         if re.search(r"\bgh\s+pr\s+merge\b", sub):
             return True, (
                 "BLOCKED by guard_protected_merge: merging pull requests is owner-only.\n"
                 "Get the PR green and wait for the owner to merge."
             )
 
-        tokens = tokenize(sub)
         subcommand, args = parse_git(tokens)
         if subcommand is None:
             continue
+
+        # A per-command `git -C <dir>` operates on <dir>'s branch, not cwd's.
+        c_dir = _dash_C_dir(tokens)
+        cmd_branch = effective
+        if c_dir is not None:
+            b = get_current_branch(_resolve(cwd, c_dir))
+            cmd_branch = b.strip().lower() if b else effective
 
         if subcommand in ("checkout", "switch"):
             new_branch = branch_after_checkout(subcommand, args)
@@ -219,12 +267,13 @@ def check_bash_command(command, protected, current_branch):
         if subcommand in ("merge", "rebase"):
             if "--abort" in args:
                 continue
-            if effective in protected:
+            if cmd_branch in protected:
                 return True, (
                     f"BLOCKED by guard_protected_merge: `git {subcommand}` while on "
-                    f"protected branch '{effective}'.\n"
+                    f"protected branch '{cmd_branch}'.\n"
                     f"Protected branches ({', '.join(sorted(protected))}) are owner-only: "
-                    f"open a PR and let the owner merge."
+                    f"open a PR and let the owner merge. (Rebasing a FEATURE branch — e.g. "
+                    f"in a worktree — is allowed; run it with the feature branch checked out.)"
                 )
             continue
 
@@ -238,10 +287,10 @@ def check_bash_command(command, protected, current_branch):
                         f"Push to a work branch and open a PR — the owner merges/pushes "
                         f"{', '.join(sorted(protected))}."
                     )
-            if bare and effective in protected:
+            if bare and cmd_branch in protected:
                 return True, (
                     f"BLOCKED by guard_protected_merge: bare `git push` while on "
-                    f"protected branch '{effective}'.\n"
+                    f"protected branch '{cmd_branch}'.\n"
                     f"Switch to a work branch first."
                 )
             continue
@@ -299,8 +348,9 @@ def main():
     if not re.search(r"\b(merge|rebase|push|checkout|switch)\b", command):
         sys.exit(0)
 
-    current_branch = get_current_branch(payload.get("cwd"))
-    blocked, reason = check_bash_command(command, protected, current_branch)
+    start_cwd = payload.get("cwd")
+    current_branch = get_current_branch(start_cwd)
+    blocked, reason = check_bash_command(command, protected, current_branch, start_cwd)
     if blocked:
         print(reason, file=sys.stderr)
         sys.exit(2)
