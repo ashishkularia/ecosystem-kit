@@ -83,6 +83,7 @@ def main():
         env["CLAUDE_CODE_OAUTH_TOKEN"] = CLAUDE_TOKEN.read_text().strip()
 
     launches = []
+    found_dirty = []
     for path in registered_paths():
         coords = repo_coords(path)
         if not coords:
@@ -116,12 +117,13 @@ def main():
             if mode != "check":
                 launches.append((owner, repo, path, num, head.get("ref"), base.get("ref")))
             else:
+                found_dirty.append(key)
                 print(f"would resolve: {key} (dirty; head {head.get('ref')} vs base {base.get('ref')})")
 
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2) + "\n")
     if mode == "check":
-        if not launches:
+        if not found_dirty:
             print("no conflicting PRs")
         return 0
 
