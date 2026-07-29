@@ -1,5 +1,14 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-07-29 — Headless launchers pass explicit --allowedTools (owner A/B = TRUST,
+  not skip-permissions). Diagnosis: headless `claude -p` runs auto-mode
+  unattended and blocks NETWORK git (fetch/push) + arbitrary code even in
+  trusted folders with commands allowlisted — trust was necessary but not
+  sufficient. Fix: weekly-hygiene/pr-comment-poller/pr-rebase now grant exactly
+  their tools via --allowedTools (hygiene=local git only; poller/rebase=+safe-push
+  +GitHub reply tools). Deny list (raw git push/config) + guard hooks still apply
+  → far tighter than --dangerously-skip-permissions. Verified headless: network
+  git fetch AND github MCP read both run under the grant.
 - 2026-07-29 — guard_protected_merge now tracks `cd` and `git -C`, not just
   checkout/switch, when deciding the effective branch. Rebasing a FEATURE
   worktree onto main was wrongly blocked whenever the session's own repo sat
