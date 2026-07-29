@@ -50,6 +50,25 @@ REGISTRY = Path.home() / ".claude" / "repo-registry"
 STATE_PATH = Path.home() / ".claude" / "pr-poller-state.json"
 LOG = Path.home() / ".claude" / "pr-poller.log"
 
+# Headless `claude -p` runs auto-mode unattended → blocks network/arbitrary
+# commands with no approver. Explicit grant for exactly what babysitting needs
+# (git + safe-push, python/bash, file edits, GitHub reply/PR tools). Raw
+# git push / config stay DENIED by settings; guard hooks still fire.
+ALLOWED_TOOLS = [
+    "--allowedTools",
+    "Bash(git:*)", "Bash(/home/ubuntu/.claude/bin/safe-push:*)",
+    "Bash(python3:*)", "Bash(bash:*)", "Bash(make:*)", "Bash(jq:*)",
+    "Edit", "Write", "Read", "Grep", "Glob",
+    "mcp__github__pull_request_read", "mcp__github__add_reply_to_pull_request_comment",
+    "mcp__github__add_issue_comment", "mcp__github__create_pull_request",
+    "mcp__github__update_pull_request",
+    "mcp__plugin_github_github__pull_request_read",
+    "mcp__plugin_github_github__add_reply_to_pull_request_comment",
+    "mcp__plugin_github_github__add_issue_comment",
+    "mcp__plugin_github_github__create_pull_request",
+    "mcp__plugin_github_github__update_pull_request",
+]
+
 REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
 
 
@@ -193,8 +212,8 @@ def main():
         )
         try:
             with open(LOG, "a") as lf:
-                subprocess.run([CLAUDE, "-p", prompt], cwd=path, timeout=3600,
-                               env=env, stdout=lf, stderr=subprocess.STDOUT)
+                subprocess.run([CLAUDE, *ALLOWED_TOOLS, "-p", prompt], cwd=path,
+                               timeout=3600, env=env, stdout=lf, stderr=subprocess.STDOUT)
             log(f"{owner}/{repo}#{num}: claude run finished")
         except Exception as e:
             log(f"{owner}/{repo}#{num}: claude run failed: {e}")
