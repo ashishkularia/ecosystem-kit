@@ -35,13 +35,13 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches unwedge-hooks.py; do
+for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches unwedge-hooks.py start-remote-sessions.sh; do
   if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
   else warn "tool not in this kit checkout, skipped: $t"; fi
 done
 cp "$KIT/tools/guard_protected_branch.py" "$HOOKS_MACHINE/guard_protected_branch.py"
 chmod +x "$HOOKS_MACHINE/guard_protected_branch.py"
-ok "safe-push, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, unwedge-hooks, guard_protected_branch"
+ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, unwedge-hooks, start-remote-sessions, guard_protected_branch"
 
 act "machine guardrails -> settings.local.json"
 python3 - "$SETTINGS" "$BIN" "$HOOKS_MACHINE" <<'PYEOF'
@@ -166,6 +166,13 @@ verify_registry() {
   done < "$REGISTRY"
 }
 
+verify_boot_automation() {
+  # The root install (systemd unit) needs sudo; the Windows Task Scheduler
+  # trigger is off-box. Both are owner-only, so this only checks the Linux side.
+  systemctl is-enabled ecosystem-boot.service >/dev/null 2>&1 || {
+    echo "       (ecosystem-boot.service not installed/enabled)"; return 1; }
+}
+
 echo
 echo "== manual steps =="
 
@@ -191,6 +198,14 @@ step "Register project checkouts" \
    (bash $KIT/installer/install.sh <path> <profile>), then register each:
      $BIN/pr-comment-poller register <path>" \
 verify_registry
+
+step "Boot automation (apt upgrade + Remote Control sessions)" \
+"   Install the root pieces (systemd unit + /usr/local/sbin scripts):
+     sudo bash $KIT/tools/install-boot-automation.sh
+   Then do the WINDOWS side it prints (Task Scheduler at-logon task to start
+   WSL + keep it alive) — WSL does not boot on Windows reboot without it.
+   Full chain + risk notes: $KIT/docs/BOOT-AUTOMATION.md" \
+verify_boot_automation
 
 # ── SUMMARY ──────────────────────────────────────────────────────────
 
