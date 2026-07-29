@@ -35,12 +35,13 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push weekly-hygiene pr-comment-poller; do
-  cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
+for t in safe-push weekly-hygiene pr-comment-poller kit-propagate pr-rebase unwedge-hooks.py; do
+  if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
+  else warn "tool not in this kit checkout, skipped: $t"; fi
 done
 cp "$KIT/tools/guard_protected_branch.py" "$HOOKS_MACHINE/guard_protected_branch.py"
 chmod +x "$HOOKS_MACHINE/guard_protected_branch.py"
-ok "safe-push, weekly-hygiene, pr-comment-poller, guard_protected_branch"
+ok "safe-push, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, unwedge-hooks, guard_protected_branch"
 
 act "machine guardrails -> settings.local.json"
 python3 - "$SETTINGS" "$BIN" "$HOOKS_MACHINE" <<'PYEOF'
@@ -56,6 +57,16 @@ def union(key, items):
         if it not in cur:
             cur.append(it)
 union("allow", [f"Bash({bindir}/safe-push:*)"])
+# GitHub MCP tools the headless automation (poller, pr-rebase) needs — read to
+# see PRs/threads, write to reply/comment and open/update PRs. BOTH server-name
+# variants. merge_pull_request is deliberately EXCLUDED (owner-only, denied
+# below). This is the kit-versioned home for the grant — no manual one-liner.
+_gh = ("get_me", "get_file_contents", "get_commit", "list_branches",
+       "list_commits", "list_issues", "search_repositories", "search_code",
+       "pull_request_read", "add_reply_to_pull_request_comment",
+       "add_issue_comment", "create_pull_request", "update_pull_request")
+union("allow", [f"mcp__{s}__{n}" for s in ("github", "plugin_github_github")
+                for n in _gh])
 union("deny", ["Bash(git push:*)", "Bash(git config:*)", "Bash(git clean:*)",
                "mcp__github__merge_pull_request",
                "mcp__plugin_github_github__merge_pull_request"])
@@ -72,15 +83,16 @@ print("  [ok]   safe-push allowed; push/merge-to-main denied; branch guard wired
 PYEOF
 
 act "cron entries"
-CRON_HYGIENE="7 6 * * 1 $BIN/weekly-hygiene >> $HOME/.claude/hygiene-cron.log 2>&1"
-CRON_POLLER="*/15 7-23 * * * $BIN/pr-comment-poller >> $HOME/.claude/pr-poller-cron.log 2>&1"
 existing="$(crontab -l 2>/dev/null || true)"
 add=""
-echo "$existing" | grep -qF "$BIN/weekly-hygiene"     || add="$add$CRON_HYGIENE\n"
-echo "$existing" | grep -qF "$BIN/pr-comment-poller"  || add="$add$CRON_POLLER\n"
+add_cron() { echo "$existing" | grep -qF "$1" || add="$add$2\n"; }
+add_cron "$BIN/weekly-hygiene"    "7 6 * * 1 $BIN/weekly-hygiene >> $HOME/.claude/hygiene-cron.log 2>&1"
+add_cron "$BIN/pr-comment-poller" "*/15 7-23 * * * $BIN/pr-comment-poller >> $HOME/.claude/pr-poller-cron.log 2>&1"
+add_cron "$BIN/kit-propagate"     "37 6 * * * $BIN/kit-propagate >> $HOME/.claude/kit-propagate-cron.log 2>&1"
+add_cron "$BIN/pr-rebase"         "17 8,12,16,20 * * * $BIN/pr-rebase >> $HOME/.claude/pr-rebase-cron.log 2>&1"
 if [ -n "$add" ]; then
   printf '%s\n%b' "$existing" "$add" | sed '/^$/d' | crontab -
-  ok "cron installed (weekly hygiene Mon 06:07; PR poller every 15 min, 07-23h)"
+  ok "cron installed/updated (hygiene, PR poller, kit-propagate, pr-rebase)"
 else
   ok "cron entries already present"
 fi
@@ -91,6 +103,12 @@ step() {  # $1 title, $2 instructions, $3 verify-fn
   local title="$1" instructions="$2" verify="$3" first=1
   while true; do
     if "$verify"; then ok "$title"; return 0; fi
+    # Non-interactive run (piped/headless, no readable /dev/tty): a failed
+    # verify can't be prompted, so skip with a warning instead of hot-looping.
+    if ! { : < /dev/tty; } 2>/dev/null; then
+      warn "$title — needs manual setup and no terminal to prompt; re-run bootstrap interactively"
+      return 1
+    fi
     echo
     if [ "$first" -eq 1 ]; then
       echo "── MANUAL STEP: $title"

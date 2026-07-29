@@ -16,6 +16,13 @@
   still refused; protected-branch check runs first so lease-to-main is still
   refused). guard_dangerous_commands: bare force blocked, lease/if-includes
   allowed (negative-lookahead regex). `check` mode read-only.
+- 2026-07-29 — bootstrap-machine.sh is now the kit-versioned home for the
+  GitHub MCP tool grants the headless automation needs (read + reply/comment/
+  create/update PR, both server variants; merge_pull_request still excluded/
+  denied) — no more manual one-liner. Also: deploys all machine tools
+  (adds kit-propagate, pr-rebase, unwedge-hooks; tolerant of missing ones),
+  installs all four crons, and its manual steps skip-with-warning when run
+  without a TTY instead of hot-looping.
 - 2026-07-29 — Hook wiring made cwd-independent (fix/hook-cwd-wiring): settings.json.template commands now `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>` (was bare-relative, which broke every hook when a session's persistent shell cwd drifted into a subdirectory); health-check accepts the new prefix (legacy relative still tolerated), docs/README/CLAUDE/CONVENTIONS + engine docstrings updated; obsoletes the rejected forwarding-shim workaround.
 - 2026-07-29 — `tools/kit-propagate`: kit changes now flow to every registered
   repo as automatic update PRs (owner still merges). Daily cron; per repo:
