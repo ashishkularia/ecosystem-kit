@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""kit-propagate — kit changes flow to every project as PRs, automatically.
+
+Owner ask (2026-07-29): "if we change anything in ecosystem-kit, all projects
+pull it and update themselves." This tool is that — with the merge button
+still the owner's. Cron runs it daily; for every registered repo whose
+kit-version stamp is behind kit main, it produces ONE update PR:
+
+    pull kit main → per repo: worktree off origin default branch
+    → installer/update.sh (engine + skills + stamp; its never-touch
+      contract is preserved)
+    → policy patches (explicit, idempotent, listed below)
+    → GATE: py_compile AND import-test every hook in the worktree —
+      a repo with project-local engine additions (e.g. DevContainer's
+      _constants extras) FAILS the gate and gets a logged skip, never
+      a breaking PR
+    → commit, safe-push branch, open PR via GitHub API (PAT from
+      ~/.secrets/github-pat; no AI tokens spent)
+
+POLICY PATCHES (kit-wide owner rules applied outside update.sh's scope):
+  - attribution {commit:"", pr:"", sessionUrl:false} merged into
+    .claude/settings.json when absent (owner rule 2026-07-29).
+
+Modes: run (default) | check (STRICTLY read-only — reports who is behind,
+mutates nothing; a dry-run that consumes state is a bug, learned on the
+comment poller).
+
+Skips: the kit repo itself, repos without a kit install, repos whose
+update branch already exists (pending PR), stamp-only diffs (noise).
+"""
+import json
+import re
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+KIT = Path("/home/ubuntu/ecosystem-kit")
+REGISTRY = Path.home() / ".claude" / "repo-registry"
+TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
+SAFE_PUSH = "/home/ubuntu/.claude/bin/safe-push"
+WORKTREES = Path("/home/ubuntu/worktrees")
+LOG = Path.home() / ".claude" / "kit-propagate.log"
+REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
+
+
+def log(msg):
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(LOG, "a") as f:
+        f.write(f"{stamp} {msg}\n")
+    print(msg)
+
+
+def run(cmd, cwd=None, check=True):
+    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=300)
+    if check and r.returncode != 0:
+        raise RuntimeError(f"{' '.join(cmd)} failed: {r.stderr.strip()[:300]}")
+    return r
+
+
+def repo_coords(path):
+    r = run(["git", "-C", str(path), "remote", "get-url", "origin"], check=False)
+    m = REMOTE_RE.search(r.stdout.strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def default_branch(path):
+    r = run(["git", "-C", str(path), "symbolic-ref", "refs/remotes/origin/HEAD"], check=False)
+    if r.returncode == 0:
+        return r.stdout.strip().rsplit("/", 1)[-1]
+    for b in ("main", "master"):
+        if run(["git", "-C", str(path), "rev-parse", "--verify", f"origin/{b}"], check=False).returncode == 0:
+            return b
+    return "main"
+
+
+def recorded_kit_commit(repo):
+    kv = Path(repo) / ".claude" / "kit-version"
+    if not kv.is_file():
+        return None
+    m = re.search(r"kit commit ([0-9a-f]{6,40})", kv.read_text())
+    return m.group(1) if m else "unknown"
+
+
+def hooks_gate(wt):
+    """py_compile + import-test every hook; True = safe to ship."""
+    hooks_dir = Path(wt) / ".claude" / "hooks"
+    for f in sorted(hooks_dir.glob("*.py")):
+        c = run(["python3", "-m", "py_compile", str(f)], check=False)
+        if c.returncode != 0:
+            log(f"    GATE FAIL compile {f.name}: {c.stderr.strip()[:200]}")
+            return False
+        if not f.name.startswith("_"):
+            i = run(["python3", "-c",
+                     f"import sys; sys.path.insert(0, '{hooks_dir}'); import {f.stem}"],
+                    check=False)
+            if i.returncode != 0:
+                log(f"    GATE FAIL import {f.name}: {i.stderr.strip()[:200]}")
+                return False
+    return True
+
+
+def patch_attribution(wt):
+    p = Path(wt) / ".claude" / "settings.json"
+    if not p.is_file():
+        return False
+    d = json.loads(p.read_text())
+    want = {"commit": "", "pr": "", "sessionUrl": False}
+    if d.get("attribution") == want:
+        return False
+    d["attribution"] = want
+    p.write_text(json.dumps(d, indent=2) + "\n")
+    return True
+
+
+def create_pr(owner, repo, head, base, old, new, files):
+    tok = TOKEN_FILE.read_text().strip()
+    body = {
+        "title": f"chore(kit): update from kit {old} -> {new}",
+        "head": head, "base": base,
+        "body": (f"Automated kit propagation ({old} -> {new}) by `kit-propagate`.\n\n"
+                 f"Applied: `installer/update.sh` (engine + skills + stamp) + policy patches "
+                 f"(attribution off). Gate passed: every hook compiles AND imports in this "
+                 f"worktree.\n\nChanged:\n" + "\n".join(f"- {f}" for f in files) +
+                 "\n\nMerge is yours; the next propagation run skips this repo while this PR's "
+                 "branch exists."),
+    }
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls",
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json",
+                 "User-Agent": "kit-propagate", "Content-Type": "application/json"},
+        method="POST")
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.loads(r.read()).get("html_url", "?")
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "run"
+    if mode == "run":
+        run(["git", "-C", str(KIT), "pull", "--ff-only", "-q"], check=False)
+    kit_head = run(["git", "-C", str(KIT), "rev-parse", "--short", "HEAD"]).stdout.strip()
+    paths = [ln.split("#")[0].strip() for ln in REGISTRY.read_text().splitlines()
+             if ln.split("#")[0].strip()] if REGISTRY.exists() else []
+
+    for repo in paths:
+        if Path(repo).resolve() == KIT.resolve():
+            continue
+        rec = recorded_kit_commit(repo)
+        if rec is None:
+            continue  # no kit install
+        name = Path(repo).name
+        if rec == kit_head:
+            print(f"[ok]   {name}: up to date ({kit_head})")
+            continue
+        if mode == "check":
+            print(f"[behind] {name}: {rec} -> {kit_head} (would open PR)")
+            continue
+
+        branch = f"chore/kit-update-{kit_head}"
+        run(["git", "-C", repo, "fetch", "-q"], check=False)
+        if run(["git", "-C", repo, "rev-parse", "--verify", f"origin/{branch}"], check=False).returncode == 0:
+            print(f"[skip] {name}: {branch} already pushed (pending PR)")
+            continue
+        base = default_branch(repo)
+        wt = WORKTREES / f"{name}-kitup"
+        run(["git", "-C", repo, "worktree", "remove", "--force", str(wt)], check=False)
+        run(["git", "-C", repo, "branch", "-D", branch], check=False)
+        try:
+            run(["git", "-C", repo, "worktree", "add", "-b", branch, str(wt), f"origin/{base}"])
+            up = run(["bash", str(KIT / "installer" / "update.sh"), str(wt)], check=False)
+            if up.returncode != 0:
+                log(f"[FAIL] {name}: update.sh: {up.stderr.strip()[:200]}"); continue
+            patch_attribution(wt)
+            if not hooks_gate(wt):
+                log(f"[FAIL] {name}: hook gate failed — project-local engine additions need a "
+                    f"manual merge with the kit engine; NO PR opened")
+                continue
+            run(["git", "-C", str(wt), "add", ".claude"])
+            changed = [l.split("\t")[-1] for l in
+                       run(["git", "-C", str(wt), "diff", "--cached", "--name-only"]).stdout.splitlines()]
+            if not changed or changed == [".claude/kit-version"]:
+                print(f"[ok]   {name}: no material changes (stamp-only) — no PR")
+                continue
+            run(["git", "-C", str(wt), "commit", "-q", "-m",
+                 f"chore(kit): update from kit {rec} -> {kit_head}\n\nAutomated by kit-propagate; "
+                 f"update.sh + policy patches; hook compile+import gate passed."])
+            run([SAFE_PUSH, "-C", str(wt), "-u", "origin", branch])
+            coords = repo_coords(repo)
+            url = create_pr(*coords, branch, base, rec, kit_head, changed) if coords else "?"
+            log(f"[PR]   {name}: {url} ({len(changed)} file(s))")
+        finally:
+            run(["git", "-C", repo, "worktree", "remove", "--force", str(wt)], check=False)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
