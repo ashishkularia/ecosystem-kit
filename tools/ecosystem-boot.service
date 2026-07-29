@@ -1,0 +1,27 @@
+# ecosystem-boot.service — run apt upgrade + start Remote Control sessions on
+# WSL start. Installed to /etc/systemd/system/ by install-boot-automation.sh.
+# See docs/BOOT-AUTOMATION.md for the full chain and the Windows-side trigger.
+#
+# Type=oneshot + RemainAfterExit=yes + KillMode=process is deliberate: the
+# launcher spawns a tmux server per repo, and without these systemd would tear
+# down the unit's control group when ExecStart finishes and kill those sessions.
+# RemainAfterExit keeps the cgroup alive; KillMode=process limits stop-time
+# signals to the main process, sparing the tmux servers.
+[Unit]
+Description=Ecosystem boot: unattended apt upgrade + per-repo Remote Control sessions
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+KillMode=process
+# Owner user the Remote Control sessions run as. Change here if not 'ubuntu'.
+Environment=BOOT_OWNER=ubuntu
+ExecStart=/usr/local/sbin/wsl-boot-orchestrator.sh
+# Root log stream goes to the journal: `journalctl -u ecosystem-boot`.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
