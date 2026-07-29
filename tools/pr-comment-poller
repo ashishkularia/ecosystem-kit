@@ -38,7 +38,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TRIGGER_AUTHOR = "ashishkularia"   # the human whose comments summon a session
-MARKER = "—claude"
+# Loop protection: Claude's replies post under the owner's PAT (same author),
+# so replies carry an INVISIBLE HTML-comment marker — GitHub never renders it,
+# humans see a clean reply, the poller still filters it. LEGACY_MARKER keeps
+# old visibly-signed replies filtered too.
+MARKER = "<!-- claude -->"
+LEGACY_MARKER = "—claude"
 CLAUDE = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
 TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
 REGISTRY = Path.home() / ".claude" / "repo-registry"
@@ -137,8 +142,9 @@ def main():
                     for c in api(tok, endpoint):
                         if c.get("user", {}).get("login") != TRIGGER_AUTHOR:
                             continue
-                        if (c.get("body") or "").rstrip().endswith(MARKER):
-                            continue  # our own signed reply
+                        body = c.get("body") or ""
+                        if MARKER in body or body.rstrip().endswith(LEGACY_MARKER):
+                            continue  # our own reply (invisible or legacy marker)
                         if c.get("created_at", "") > last:
                             fresh.append(c)
                 except Exception as e:
@@ -177,8 +183,10 @@ def main():
             f"comment, address each one — doc/.memory changes may be made directly; for "
             f"code changes work in a git worktree of the PR branch and never switch "
             f"branches in this live checkout — push via /home/ubuntu/.claude/bin/safe-push, "
-            f"and reply to each addressed thread. End every reply you post with "
-            f"'{MARKER}' on its own line. Never merge anything; the owner merges."
+            f"and reply to each addressed thread. Write replies with NO visible signature "
+            f"or attribution; append the invisible HTML comment '{MARKER}' as the last "
+            f"line of every reply body (GitHub does not render it — it is loop protection). "
+            f"Never merge anything; the owner merges."
         )
         try:
             with open(LOG, "a") as lf:
