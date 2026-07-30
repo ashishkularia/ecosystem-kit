@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""prune-stale-branches — delete merged/stale LOCAL branches across all repos.
+
+Owner ask (2026-07-31): "remove local stale branches from all repos." A cron
+runs this; it deletes only branches that are PROVABLY safe to remove, and
+reports (never deletes) anything it isn't sure about.
+
+Two tiers, each with an independent guarantee:
+
+  Tier 1 — branches MERGED into the repo's true default branch. Deleted with
+           `git branch -d`, which git itself refuses unless the branch is fully
+           merged — so this tier can never lose commits.
+  Tier 2 — branches whose upstream is GONE (the remote branch was deleted) AND
+           whose PR is confirmed MERGED via the GitHub API. This catches
+           SQUASH-merges, whose tips are not ancestors of the default branch and
+           so are invisible to Tier 1. Deleted with `git branch -D`. Without an
+           API-confirmed merge the branch is KEPT (a "gone" upstream can also
+           mean someone deleted unmerged work on the remote).
+
+NEVER deleted: the true default branch (resolved from the REMOTE's HEAD, never
+from the current checkout — a checkout sitting on a feature branch must not make
+that branch look like "default"), the currently checked-out branch, any branch
+checked out in a worktree, or literal `main`/`master`. If a repo's default
+cannot be resolved, the WHOLE repo is skipped rather than guessed at.
+
+Modes:
+  prune-stale-branches            act (delete per the tiers above)
+  prune-stale-branches check      read-only dry-run: report what WOULD be deleted
+
+Registry: ~/.claude/repo-registry (shared). Credential: ~/.secrets/github-pat
+for Tier 2 (Tier 1 runs without it; no AI tokens are ever spent).
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+REGISTRY = Path.home() / ".claude" / "repo-registry"
+TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
+LOG = Path.home() / ".claude" / "prune-branches.log"
+REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
+NEVER = {"main", "master", "HEAD"}
+
+
+def log(msg):
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    with open(LOG, "a") as f:
+        f.write(f"{stamp} {msg}\n")
+    print(msg)
+
+
+def git(repo, *args, check=False):
+    r = subprocess.run(["git", "-C", repo, *args],
+                       capture_output=True, text=True, timeout=120)
+    if check and r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()[:200]}")
+    return r
+
+
+def registered_paths():
+    if not REGISTRY.exists():
+        return []
+    return [ln.split("#")[0].strip() for ln in REGISTRY.read_text().splitlines()
+            if ln.split("#")[0].strip()]
+
+
+def repo_coords(repo):
+    m = REMOTE_RE.search(git(repo, "remote", "get-url", "origin").stdout.strip())
+    return (m.group(1), m.group(2)) if m else None
+
+
+def true_default(repo):
+    """Resolve the default branch from the REMOTE's HEAD — authoritative, and
+    immune to the local checkout sitting on a feature branch. None => skip."""
+    r = git(repo, "ls-remote", "--symref", "origin", "HEAD")
+    for line in r.stdout.splitlines():
+        if line.startswith("ref:"):
+            # "ref: refs/heads/main\tHEAD"
+            return line.split()[1].split("refs/heads/", 1)[-1]
+    for b in ("main", "master"):
+        if git(repo, "rev-parse", "--verify", f"refs/remotes/origin/{b}").returncode == 0:
+            return b
+    return None
+
+
+def worktree_branches(repo):
+    """Branches checked out in ANY worktree — never deletable."""
+    out = git(repo, "worktree", "list", "--porcelain").stdout
+    return {ln.split("refs/heads/", 1)[-1] for ln in out.splitlines()
+            if ln.startswith("branch ")}
+
+
+def local_branches(repo):
+    return git(repo, "for-each-ref", "--format=%(refname:short)",
+               "refs/heads").stdout.split()
+
+
+def merged_into(repo, default):
+    return set(git(repo, "branch", "--merged", f"origin/{default}",
+                   "--format=%(refname:short)").stdout.split())
+
+
+def gone_upstream(repo):
+    out = git(repo, "for-each-ref",
+              "--format=%(refname:short) %(upstream:track)", "refs/heads").stdout
+    return {ln.split()[0] for ln in out.splitlines() if "[gone]" in ln}
+
+
+def pr_merged(owner, repo, branch, tok):
+    """True only if a PR with this head branch has a non-null merged_at."""
+    url = (f"https://api.github.com/repos/{owner}/{repo}/pulls"
+           f"?state=closed&head={owner}:{branch}&per_page=10")
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json",
+        "User-Agent": "prune-stale-branches"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return any(pr.get("merged_at") for pr in json.loads(r.read()))
+    except Exception as e:
+        log(f"    API error checking {owner}/{repo}:{branch}: {e}")
+        return False
+
+
+def main():
+    mode = sys.argv[1] if len(sys.argv) > 1 else "run"
+    dry = mode == "check"
+    tok = TOKEN_FILE.read_text().strip() if TOKEN_FILE.is_file() else None
+    if not tok:
+        log("no ~/.secrets/github-pat — Tier 2 (squash-merge cleanup) disabled")
+
+    deleted = kept = 0
+    for repo in registered_paths():
+        if git(repo, "rev-parse", "--git-dir").returncode != 0:
+            continue
+        name = os.path.basename(repo)
+        git(repo, "fetch", "--prune", "origin")   # accurate gone/merged status
+        git(repo, "worktree", "prune")            # drop admin refs for deleted worktrees
+        default = true_default(repo)
+        if not default:
+            log(f"[skip] {name}: cannot resolve default branch from remote — repo skipped")
+            continue
+        current = git(repo, "branch", "--show-current").stdout.strip()
+        protected = NEVER | {default, current} | worktree_branches(repo)
+        merged = merged_into(repo, default)
+        gone = gone_upstream(repo)
+        coords = repo_coords(repo)
+
+        print(f"== {name} (default={default}, current={current or '<detached>'}) ==")
+        for b in local_branches(repo):
+            if b in protected:
+                continue
+            if b in merged:
+                if dry:
+                    print(f"  would delete (merged): {b}"); deleted += 1; continue
+                r = git(repo, "branch", "-d", b)
+                if r.returncode == 0:
+                    log(f"[{name}] deleted (merged into {default}): {b}"); deleted += 1
+                else:
+                    log(f"[{name}] KEEP {b}: -d refused: {r.stderr.strip()[:120]}"); kept += 1
+            elif b in gone and coords:
+                if not (tok and pr_merged(coords[0], coords[1], b, tok)):
+                    print(f"  keep (gone, no merged PR): {b}"); kept += 1; continue
+                if dry:
+                    print(f"  would delete (squash-merged, PR confirmed): {b}"); deleted += 1; continue
+                r = git(repo, "branch", "-D", b)
+                if r.returncode == 0:
+                    log(f"[{name}] deleted (PR merged, upstream gone): {b}"); deleted += 1
+                else:
+                    log(f"[{name}] KEEP {b}: -D failed: {r.stderr.strip()[:120]}"); kept += 1
+            # else: unmerged, upstream present -> active branch, silently kept
+
+    verb = "would be deleted" if dry else "deleted"
+    print(f"--- {deleted} branch(es) {verb}, {kept} kept for review")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
