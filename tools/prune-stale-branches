@@ -10,12 +10,15 @@ Two tiers, each with an independent guarantee:
   Tier 1 — branches MERGED into the repo's true default branch. Deleted with
            `git branch -d`, which git itself refuses unless the branch is fully
            merged — so this tier can never lose commits.
-  Tier 2 — branches whose upstream is GONE (the remote branch was deleted) AND
-           whose PR is confirmed MERGED via the GitHub API. This catches
-           SQUASH-merges, whose tips are not ancestors of the default branch and
-           so are invisible to Tier 1. Deleted with `git branch -D`. Without an
-           API-confirmed merge the branch is KEPT (a "gone" upstream can also
-           mean someone deleted unmerged work on the remote).
+  Tier 2 — branches NOT merged into the default whose PR is confirmed MERGED via
+           the GitHub API (non-null merged_at). This catches SQUASH-merges, whose
+           tips are not ancestors of the default and so are invisible to Tier 1.
+           Deleted with `git branch -D`. Deliberately NOT gated on the local
+           upstream being "[gone]": stale remote-tracking refs make [gone]
+           unreliable (a merged+auto-deleted branch can still show a live
+           upstream), so the authoritative GitHub API is the sole delete signal.
+           A branch with unpushed commits (`[ahead ...]`) or with no confirmed
+           merged PR is KEPT.
 
 NEVER deleted: the true default branch (resolved from the REMOTE's HEAD, never
 from the current checkout — a checkout sitting on a feature branch must not make
@@ -104,10 +107,15 @@ def merged_into(repo, default):
                    "--format=%(refname:short)").stdout.split())
 
 
-def gone_upstream(repo):
+def branch_tracks(repo):
+    """Map branch -> its upstream:track string (e.g. '[gone]', '[ahead 2]', '')."""
     out = git(repo, "for-each-ref",
-              "--format=%(refname:short) %(upstream:track)", "refs/heads").stdout
-    return {ln.split()[0] for ln in out.splitlines() if "[gone]" in ln}
+              "--format=%(refname:short)\t%(upstream:track)", "refs/heads").stdout
+    tracks = {}
+    for ln in out.splitlines():
+        parts = ln.split("\t", 1)
+        tracks[parts[0]] = parts[1] if len(parts) > 1 else ""
+    return tracks
 
 
 def pr_merged(owner, repo, branch, tok):
@@ -146,7 +154,7 @@ def main():
         current = git(repo, "branch", "--show-current").stdout.strip()
         protected = NEVER | {default, current} | worktree_branches(repo)
         merged = merged_into(repo, default)
-        gone = gone_upstream(repo)
+        tracks = branch_tracks(repo)
         coords = repo_coords(repo)
 
         print(f"== {name} (default={default}, current={current or '<detached>'}) ==")
@@ -154,6 +162,7 @@ def main():
             if b in protected:
                 continue
             if b in merged:
+                # Tier 1: merged into the true default -> git-safe -d.
                 if dry:
                     print(f"  would delete (merged): {b}"); deleted += 1; continue
                 r = git(repo, "branch", "-d", b)
@@ -161,16 +170,24 @@ def main():
                     log(f"[{name}] deleted (merged into {default}): {b}"); deleted += 1
                 else:
                     log(f"[{name}] KEEP {b}: -d refused: {r.stderr.strip()[:120]}"); kept += 1
-            elif b in gone and coords:
-                if not (tok and pr_merged(coords[0], coords[1], b, tok)):
-                    print(f"  keep (gone, no merged PR): {b}"); kept += 1; continue
-                if dry:
-                    print(f"  would delete (squash-merged, PR confirmed): {b}"); deleted += 1; continue
-                r = git(repo, "branch", "-D", b)
-                if r.returncode == 0:
-                    log(f"[{name}] deleted (PR merged, upstream gone): {b}"); deleted += 1
-                else:
-                    log(f"[{name}] KEEP {b}: -D failed: {r.stderr.strip()[:120]}"); kept += 1
+                continue
+            # Tier 2: not merged into default (e.g. SQUASH-merged, so the tip is
+            # not an ancestor). Confirm via the API that a PR from this branch was
+            # merged. Independent of the local upstream-tracking state — stale
+            # remote-tracking refs make '[gone]' unreliable, so we don't rely on it.
+            if "ahead" in tracks.get(b, ""):
+                # local commits beyond the upstream => possible unpushed work; keep.
+                print(f"  keep (has unpushed commits: {tracks[b]}): {b}"); kept += 1; continue
+            if not (tok and coords and pr_merged(coords[0], coords[1], b, tok)):
+                # no confirmed merged PR -> active/unknown branch, keep.
+                kept += 1; continue
+            if dry:
+                print(f"  would delete (PR merged, not on default): {b}"); deleted += 1; continue
+            r = git(repo, "branch", "-D", b)
+            if r.returncode == 0:
+                log(f"[{name}] deleted (PR merged): {b}"); deleted += 1
+            else:
+                log(f"[{name}] KEEP {b}: -D failed: {r.stderr.strip()[:120]}"); kept += 1
             # else: unmerged, upstream present -> active branch, silently kept
 
     verb = "would be deleted" if dry else "deleted"
