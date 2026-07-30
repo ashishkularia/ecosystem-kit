@@ -136,11 +136,41 @@ def create_pr(owner, repo, head, base, old, new, files):
         return json.loads(r.read()).get("html_url", "?")
 
 
+def kit_default_branch():
+    """The kit repo's default branch, from the remote — not the local checkout."""
+    r = run(["git", "-C", str(KIT), "symbolic-ref", "-q", "--short",
+             "refs/remotes/origin/HEAD"], check=False)
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.strip().split("/")[-1]
+    for b in ("main", "master"):
+        if run(["git", "-C", str(KIT), "rev-parse", "--verify", f"origin/{b}"],
+               check=False).returncode == 0:
+            return b
+    return "main"
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "run"
+    run(["git", "-C", str(KIT), "fetch", "-q", "origin"], check=False)
+    kit_default = kit_default_branch()
+    # kit_head is the REMOTE default's tip — authoritative, never the local HEAD.
+    kit_head = run(["git", "-C", str(KIT), "rev-parse", "--short",
+                    f"origin/{kit_default}"]).stdout.strip()
     if mode == "run":
+        # update.sh copies engine files from the kit WORKING TREE, so a real run
+        # must be ON the default branch AND synced to origin. A checkout parked on
+        # a feature branch would ship unmerged engine files and stamp every repo
+        # with an unmerged commit (this happened once — DevContainer #7). Refuse.
+        cur = run(["git", "-C", str(KIT), "branch", "--show-current"]).stdout.strip()
         run(["git", "-C", str(KIT), "pull", "--ff-only", "-q"], check=False)
-    kit_head = run(["git", "-C", str(KIT), "rev-parse", "--short", "HEAD"]).stdout.strip()
+        head = run(["git", "-C", str(KIT), "rev-parse", "HEAD"]).stdout.strip()
+        remote = run(["git", "-C", str(KIT), "rev-parse", f"origin/{kit_default}"]).stdout.strip()
+        if cur != kit_default or head != remote:
+            log(f"[abort] kit checkout is not on a synced '{kit_default}' "
+                f"(on '{cur or 'DETACHED'}', HEAD {head[:7]} vs origin {remote[:7]}) — "
+                f"refusing to propagate unmerged content. "
+                f"Fix: git -C {KIT} checkout {kit_default} && git -C {KIT} pull --ff-only")
+            return 1
     paths = [ln.split("#")[0].strip() for ln in REGISTRY.read_text().splitlines()
              if ln.split("#")[0].strip()] if REGISTRY.exists() else []
 
@@ -192,6 +222,10 @@ def main():
             log(f"[PR]   {name}: {url} ({len(changed)} file(s))")
         finally:
             run(["git", "-C", repo, "worktree", "remove", "--force", str(wt)], check=False)
+            # Drop the transient local branch too — origin keeps it while a PR is
+            # open (the pending-PR skip above checks origin/<branch>, not local),
+            # so leaving it locally only created daily churn for prune-stale-branches.
+            run(["git", "-C", repo, "branch", "-D", branch], check=False)
     return 0
 
 
