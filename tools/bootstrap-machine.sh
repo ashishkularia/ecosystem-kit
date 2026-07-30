@@ -35,13 +35,13 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push weekly-hygiene pr-comment-poller kit-propagate pr-rebase unwedge-hooks.py; do
+for t in safe-push weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches unwedge-hooks.py; do
   if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
   else warn "tool not in this kit checkout, skipped: $t"; fi
 done
 cp "$KIT/tools/guard_protected_branch.py" "$HOOKS_MACHINE/guard_protected_branch.py"
 chmod +x "$HOOKS_MACHINE/guard_protected_branch.py"
-ok "safe-push, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, unwedge-hooks, guard_protected_branch"
+ok "safe-push, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, unwedge-hooks, guard_protected_branch"
 
 act "machine guardrails -> settings.local.json"
 python3 - "$SETTINGS" "$BIN" "$HOOKS_MACHINE" <<'PYEOF'
@@ -90,9 +90,10 @@ add_cron "$BIN/weekly-hygiene"    "7 6 * * 1 $BIN/weekly-hygiene >> $HOME/.claud
 add_cron "$BIN/pr-comment-poller" "*/15 7-23 * * * $BIN/pr-comment-poller >> $HOME/.claude/pr-poller-cron.log 2>&1"
 add_cron "$BIN/kit-propagate"     "37 6 * * * $BIN/kit-propagate >> $HOME/.claude/kit-propagate-cron.log 2>&1"
 add_cron "$BIN/pr-rebase"         "17 8,12,16,20 * * * $BIN/pr-rebase >> $HOME/.claude/pr-rebase-cron.log 2>&1"
+add_cron "$BIN/prune-stale-branches" "52 6 * * * $BIN/prune-stale-branches >> $HOME/.claude/prune-branches-cron.log 2>&1"
 if [ -n "$add" ]; then
   printf '%s\n%b' "$existing" "$add" | sed '/^$/d' | crontab -
-  ok "cron installed/updated (hygiene, PR poller, kit-propagate, pr-rebase)"
+  ok "cron installed/updated (hygiene, PR poller, kit-propagate, pr-rebase, prune-stale-branches)"
 else
   ok "cron entries already present"
 fi

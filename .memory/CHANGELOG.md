@@ -1,5 +1,17 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-07-31 — `tools/prune-stale-branches`: a daily cron (06:52) that deletes
+  merged/stale LOCAL branches across every registered repo — pure git + GitHub
+  API, no AI tokens. Two provably-safe tiers: Tier 1 = branches merged into the
+  repo's TRUE default (`git branch -d`, which git refuses unless truly merged);
+  Tier 2 = branches whose upstream is GONE **and** whose PR is API-confirmed
+  merged (`git branch -D`, catches squash-merges Tier 1 can't see). NEVER
+  deletes the default branch (resolved from the REMOTE's HEAD via `ls-remote
+  --symref`, never the current checkout — a checkout on a feature branch must
+  not make that branch look like default), the current branch, worktree-held
+  branches, or main/master; a repo whose default can't be resolved is skipped
+  whole. `check` mode = read-only dry-run. bootstrap-machine.sh deploys it +
+  installs the cron. Dry-run across the 6 repos: 28 stale branches, 0 uncertain.
 - 2026-07-29 — Headless launchers pass explicit --allowedTools (owner A/B = TRUST,
   not skip-permissions). Diagnosis: headless `claude -p` runs auto-mode
   unattended and blocks NETWORK git (fetch/push) + arbitrary code even in
