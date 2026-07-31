@@ -89,6 +89,16 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 
 (Note the distinction: fail-open hooks still *block* when they run correctly and find a violation — the table is about crash behavior only.)
 
+### Command splitting is a shared security primitive
+
+Every Bash guard finds the commands it must inspect through **one** `split_shell_commands` in `_constants.py`. No guard may define its own: the three guards each carried a private copy and the copies had already drifted (40/56/40 lines, only one of which extracted `$(…)`), which is exactly how the 2026-08-01 push bypass survived — a security parser with three forks gets fixed in one of them. A test fails if any `guard_*.py` re-defines it.
+
+The rule is **over-split, never under-split**: an extra fragment costs at most a false positive, a missed fragment is a bypass. Splitting on `&&` `||` `;` alone let `git push | tail -2` parse as one command whose push arguments were `['|','tail','-2']`, so `tail` read as an explicit unprotected destination and a push to a protected branch was allowed. Splitting now covers `&&` `||` `;` `|` `&` newline plus `(` `)` `{` `}` and backticks, and each fragment is *also* emitted with leading shell keywords (`do git push`), wrappers (`sudo`, `command`, `nohup`, `env`) and `VAR=value` prefixes stripped — otherwise the keyword or wrapper becomes the command word the guard inspects. Both raw and stripped fragments are returned, because some guards match whole command lines and others inspect the first token.
+
+Mis-splitting is *not* a safe form of over-splitting: `&` stays literal after `>` so `2>&1` survives, since a mangled `git push 2>` changes which token reads as a destination and could flip a block into an allow.
+
+A local `git commit` on a protected branch remains allowed by design — `weekly-hygiene` commits `.memory/` on the default branch and never pushes. The **push** is the gate, because pushing is what makes work shared.
+
 ## 5. Hook roster and wiring
 
 | Event | Hooks (in order) |

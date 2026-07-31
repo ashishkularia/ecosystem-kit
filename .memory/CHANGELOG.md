@@ -1,5 +1,29 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-01 — **SECURITY: guard_protected_merge could be walked around with
+  ordinary shell syntax.** `split_shell_commands` split on `&&`, `||`, `;` and
+  nothing else, so `git push | tail -2` parsed as ONE command whose push
+  arguments were `['|','tail','-2']` — `tail` read as an explicit, unprotected
+  destination — and a push to a protected branch was allowed. Reported by a
+  homeassistant session that had already pushed three commits to master
+  (064294c, d5c95b2, d9f073b); it correctly declined to patch the guard itself
+  and escalated upstream. Verification found the hole wider than reported:
+  **18 bypass forms** — pipes (`|`, `|&`), backgrounding (`&`), newlines,
+  subshells `(…)`, substitutions `$(…)` and backticks, brace groups, shell
+  keywords (`do git push`, `then git push` — the KEYWORD became the command
+  word), and wrapper/assignment prefixes (`sudo`, `command`, `nohup`, `env`,
+  `FOO=bar`). All now blocked. The splitter is now a single implementation in
+  `_constants.py` imported by all three guards; the three private copies had
+  already drifted (40/56/40 lines, only one of which extracted `$(…)`), which
+  is exactly how such a bug survives being fixed. Documented rule:
+  over-split, never under-split — an extra fragment costs at most a false
+  positive, a missed fragment is a bypass. `&` stays literal after `>` so
+  `2>&1` survives intact. Engine suite 136 → 157 tests; false-positive sweep
+  confirms everyday forms including `git push origin <feature> | tail -2` still
+  pass. Unrelated to the kit: the reflog shows external tooling checking out
+  master and pulling after PR merges (no kit tool does this — verified), which
+  is what left the session believing it was on a feature branch.
+
 - 2026-08-01 — `kit-propagate` gains a **hook-wiring policy patch**: kit hook
   wirings missing from a target's `.claude/settings.json` are appended during
   propagation. Without it, a kit change that wires an EXISTING hook onto a NEW

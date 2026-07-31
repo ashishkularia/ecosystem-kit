@@ -31,6 +31,7 @@ from _constants import (
     DESTRUCTIVE_GIT_CASE_SENSITIVE,
     DESTRUCTIVE_GIT_PATTERNS,
     ENV_STAGING_PATTERNS,
+    split_shell_commands,
 )
 
 HOOK_DEBUG = os.environ.get("HOOK_DEBUG", "").lower() in ("1", "true", "yes")
@@ -41,62 +42,6 @@ def debug(msg):
         print(f"[DEBUG guard_dangerous_commands] {msg}", file=sys.stderr)
 
 
-def split_shell_commands(command):
-    """Split a shell command on &&, ||, ; while respecting quotes.
-
-    Also extracts $(...) and backtick command substitutions as additional
-    entries to check. Returns a list of individual command strings.
-    """
-    commands = []
-    current = []
-    in_single = False
-    in_double = False
-    i = 0
-
-    while i < len(command):
-        c = command[i]
-        if c == "'" and not in_double:
-            in_single = not in_single
-            current.append(c)
-            i += 1
-            continue
-        if c == '"' and not in_single:
-            in_double = not in_double
-            current.append(c)
-            i += 1
-            continue
-        if not in_single and not in_double:
-            if i + 1 < len(command) and command[i:i + 2] in ("&&", "||"):
-                cmd = "".join(current).strip()
-                if cmd:
-                    commands.append(cmd)
-                current = []
-                i += 2
-                continue
-            if c == ";":
-                cmd = "".join(current).strip()
-                if cmd:
-                    commands.append(cmd)
-                current = []
-                i += 1
-                continue
-        current.append(c)
-        i += 1
-
-    cmd = "".join(current).strip()
-    if cmd:
-        commands.append(cmd)
-
-    for match in re.finditer(r"\$\(([^)]+)\)", command):
-        inner = match.group(1).strip()
-        if inner:
-            commands.append(inner)
-    for match in re.finditer(r"`([^`]+)`", command):
-        inner = match.group(1).strip()
-        if inner:
-            commands.append(inner)
-
-    return commands
 
 
 def extract_docker_exec_command(command):

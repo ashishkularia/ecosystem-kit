@@ -179,5 +179,60 @@ class FastPathTest(unittest.TestCase):
         self.assertEqual(code, 2)
 
 
+class ShellFormBypassTest(unittest.TestCase):
+    """Regression: a push escaped the guard by hiding behind shell syntax.
+
+    Reported 2026-08-01 from a homeassistant session that had already pushed to
+    master three times. Two causes combined: something outside Claude checked
+    out master after a PR merge (so the session believed it was on a feature
+    branch), and `git push | tail -2` — a habitual output-trimming form —
+    parsed as ONE command whose push arguments were ['|','tail','-2'], making
+    `tail` read as an explicit, unprotected destination.
+
+    Every form below must block while the checkout is ON a protected branch.
+    """
+
+    FORMS = [
+        "git push | tail -2",            # the reported bypass
+        "git push | cat",
+        "git push |& tail",
+        "git push &",                    # backgrounded
+        "git push\ngit status",          # newline-separated
+        "(git push)",                    # subshell
+        "$(git push)",                   # command substitution
+        "`git push`",                    # backticks
+        "{ git push; }",                 # brace group
+        "for f in a b; do git push; done",   # keyword becomes the command word
+        "if true; then git push; fi",
+        "sudo git push",                 # wrapper prefixes
+        "command git push",
+        "nohup git push",
+        "env git push",
+        "FOO=bar git push",              # env assignment prefix
+        "cd repo && (git push | tail -1)",
+    ]
+
+    def test_every_shell_form_blocks_on_a_protected_branch(self):
+        for form in self.FORMS:
+            with self.subTest(form=form):
+                code, _out, _err = run_bash(form, current_branch="master")
+                self.assertEqual(code, 2, f"{form!r} was ALLOWED on master")
+
+    def test_piped_push_to_protected_refspec_blocks_from_a_feature_branch(self):
+        code, _out, _err = run_bash("git push origin HEAD:main | tail -2",
+                                    current_branch="feature/x")
+        self.assertEqual(code, 2)
+
+    def test_piped_feature_push_still_allowed(self):
+        # The fix must not turn the habitual form into a false positive.
+        code, _out, err = run_bash("git push origin feature/x | tail -2",
+                                   current_branch="feature/x")
+        self.assertEqual(code, 0, err)
+
+    def test_redirection_form_still_allowed_on_a_feature_branch(self):
+        code, _out, err = run_bash("git push 2>&1", current_branch="feature/x")
+        self.assertEqual(code, 0, err)
+
+
 if __name__ == "__main__":
     unittest.main()

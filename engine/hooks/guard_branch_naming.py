@@ -18,7 +18,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from _constants import load_kit
+from _constants import load_kit, split_shell_commands
 
 HOOK_DEBUG = os.environ.get("HOOK_DEBUG", "").lower() in ("1", "true", "yes")
 
@@ -31,46 +31,6 @@ def debug(msg):
         print(f"[DEBUG guard_branch_naming] {msg}", file=sys.stderr)
 
 
-def split_shell_commands(command):
-    """Split on &&, ||, ; while respecting quotes."""
-    commands = []
-    current = []
-    in_single = False
-    in_double = False
-    i = 0
-    while i < len(command):
-        c = command[i]
-        if c == "'" and not in_double:
-            in_single = not in_single
-            current.append(c)
-            i += 1
-            continue
-        if c == '"' and not in_single:
-            in_double = not in_double
-            current.append(c)
-            i += 1
-            continue
-        if not in_single and not in_double:
-            if i + 1 < len(command) and command[i:i + 2] in ("&&", "||"):
-                cmd = "".join(current).strip()
-                if cmd:
-                    commands.append(cmd)
-                current = []
-                i += 2
-                continue
-            if c == ";":
-                cmd = "".join(current).strip()
-                if cmd:
-                    commands.append(cmd)
-                current = []
-                i += 1
-                continue
-        current.append(c)
-        i += 1
-    cmd = "".join(current).strip()
-    if cmd:
-        commands.append(cmd)
-    return commands
 
 
 def extract_created_branch(command):
