@@ -25,7 +25,8 @@ JSON cannot carry comments, so this file documents every key of `kit.config.exam
 | `principles.dead_code` | same | `"advise"` | Flags large commented-out code blocks. (Unreferenced-new-file heuristic exists but ships OFF.) |
 | `principles.dry_kiss` | same | `"advise"` | Advisory text only — no mechanical check. |
 | `file_write_rules` | object | `{"blocked": [], "allowed": []}` | Extra rules for `guard_file_writes` on top of its project-agnostic defaults. `blocked`: regexes (either `"<regex>"` or `["<regex>", "<reason>"]` pairs) that block writes; `allowed`: regexes that override blocks (both kit defaults and profile-added). Matched against repo-relative paths. |
-| `diary` | bool | `true` | When `true`, the Stop-gate side of `docs_contract` also requires today's `.memory/diary/YYYY-MM-DD.md` to exist and be touched after the session's first pending flag. |
+| `diary` | bool | `true` | When `true`, `docs_contract` requires this change's diary entry (see `diary_scope`) to exist and be touched after the session's first pending flag — checked both at the Stop gate and, for `decision`/`discussion` flags, before each `git commit`. |
+| `diary_scope` | `"branch"` \| `"daily"` | `"branch"` | Which file a diary entry goes in. `"branch"`: one entry per branch/MR, `.memory/diary/YYYY-MM-DD-<branch-slug>.md`, dated when the branch's diary started and reused for the branch's whole life — a change's discussion and decisions stay together and survive the days it spans. `"daily"`: the legacy one-file-per-date behavior. Branch scope falls back to the dated file on a detached HEAD or outside a git repo. |
 
 ## Conventions that are kit-wide (not per-profile keys)
 

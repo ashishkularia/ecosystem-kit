@@ -36,7 +36,7 @@ The ecosystem is loaded at session start **regardless of task** — the user sho
 1. project + profile name (from `kit.json`)
 2. first 40 lines of `.memory/STATE.md`, plus a stale warning if its "Last validated" date is >7 days old
 3. open-entry counts for `VERIFY.md` and `ISSUES.md` — `- [ ]` checkboxes are the kit convention, but repos drift to plain dated bullets (`- YYYY-MM-DD — …`) and a checkbox-only counter then reports a confident **0 open** while real work piles up (meritick: 39 issues reported as none). When a file has no checkboxes, `count_open_entries()` falls back to counting dated bullets per *entry* — an entry runs from its bullet to the next one, and a shouted closure marker anywhere inside it (`Status: RESOLVED`, `DONE`, …; case-sensitive, so lowercase prose like "not done" stays open, and `PARTIALLY RESOLVED` stays open) closes it — and the banner flags the format drift rather than silently normalizing it
-4. last 20 lines of the newest `.memory/diary/*.md`
+4. last 20 lines of **this branch's** diary entry, falling back to the most recently modified one (labelled as such, so a borrowed entry is never mistaken for the current change's record)
 5. git branch, dirty-file count, unpushed-commit count
 6. the `always_load` list from `kit.json` with the instruction to **Read each file before substantive work**
 
@@ -105,11 +105,14 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 ### docs_contract (the knowledge-decay stopper)
 
 - **PostToolUse**: an Edit/Write matching `source_patterns` records a pending `code_change` flag in `.memory/cache/pending.json` (+ reminder). Command flows (`/decide`, `/idea`, discussions) may record `decision` / `discussion` flags the same way — flag names are accepted generically.
-- **Stop**: while flags are pending, block until (a) the matching roster file (`code_change`→CHANGELOG.md, `decision`→DECISIONS.md, `discussion`→diary) has mtime newer than the flag, and (b) if `kit.diary`, today's `.memory/diary/YYYY-MM-DD.md` exists and was touched after the session's first flag. Satisfied flags are cleared; `stop_hook_active` guards against loops.
+- **PreToolUse (Bash)**: on a `git commit`, if a `decision` or `discussion` flag is pending and the change's diary has not been touched since, **block (exit 2)**. Reasoning belongs in the diary at the commit that carries it — a diary written only at the Stop gate is a reconstruction, not a record. Deliberately narrow: a plain `code_change` never gates here (it rides to Stop), so ordinary commits are never interrupted. The `git commit` pattern is anchored to a command boundary (start, or after `;`/`&&`/`||`/`|`/newline) so `echo git commit` cannot wedge an unrelated command — a loose match matters more here than in advisory `guard_commit_message`, because this one blocks.
+- **Stop**: while flags are pending, block until (a) the matching roster file (`code_change`→CHANGELOG.md, `decision`→DECISIONS.md, `discussion`→diary) has mtime newer than the flag, and (b) if `kit.diary`, the change's diary entry exists and was touched after the session's first flag. Satisfied flags are cleared; `stop_hook_active` guards against loops.
+
+**Diary scope.** `diary_scope: "branch"` (the default) gives each branch/MR **one** diary — `.memory/diary/YYYY-MM-DD-<branch-slug>.md`, dated when that branch's diary started and reused for the branch's whole life, so a change's discussion and decisions stay together and survive the days it spans. An existing entry for the branch is reused whatever its date prefix; only the first write picks a date. `diary_scope: "daily"` keeps the legacy one-file-per-date behavior, and branch scope falls back to the dated file on a detached HEAD or outside a git repo (a diary keyed on a branch that doesn't exist is worse than a dated one). `docs_contract.py diary-path` resolves the current file so command flows never reimplement the rules.
 
 ### Profile-driven behavior
 
-`kit.json` parameterizes the engine per project: `source_patterns` (docs_contract, tdd_gate), `domain_map` (context_attach, once-per-session state in `.memory/cache/`), `branch_types` + `protected_branches` (branch/merge guards), `principles` (guard_principles severity per check, `tdd: enforce` makes tdd_gate exit 2), `diary` (Stop-gate diary requirement). See `kit.config.example.md` for every key.
+`kit.json` parameterizes the engine per project: `source_patterns` (docs_contract, tdd_gate), `domain_map` (context_attach, once-per-session state in `.memory/cache/`), `branch_types` + `protected_branches` (branch/merge guards), `principles` (guard_principles severity per check, `tdd: enforce` makes tdd_gate exit 2), `diary` + `diary_scope` (diary requirement and whether entries are per-branch or per-date). See `kit.config.example.md` for every key.
 
 ## 6. Ceremony and gates
 
@@ -153,7 +156,7 @@ kit promotion ── PR against ecosystem-kit (template/engine/profile change)
 /kit-update in each project ── update.sh ──► every repo inherits the improvement
 ```
 
-Roster files each have a drain path so knowledge stays live instead of accreting: `/state` revalidates STATE.md against reality, `/verify` drains VERIFY checkboxes, `/summary` digests ISSUES + IDEAS + VERIFY + CHANGELOG into a top-3 next, `/diary` closes the day, and `session_boot` re-surfaces staleness every morning.
+Roster files each have a drain path so knowledge stays live instead of accreting: `/state` revalidates STATE.md against reality, `/verify` drains VERIFY checkboxes, `/summary` digests ISSUES + IDEAS + VERIFY + CHANGELOG into a top-3 next, `/diary` records the change as it happens (appending to the branch's entry at each decision, not once at the end), and `session_boot` re-surfaces staleness every morning.
 
 ## 9. Command, agent, and skill rosters
 

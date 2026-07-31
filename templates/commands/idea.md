@@ -4,9 +4,12 @@ description: Discuss and flesh out a new idea, then record it in IDEAS.md
 
 Capture and develop the idea given in the argument (or ask for it).
 
-1. Drop the enforcement flag FIRST, so the Stop gate holds the session open
-   until the discussion reaches the diary:
+1. Drop the enforcement flag FIRST, so the gates hold the session open until
+   the discussion reaches the diary:
    `python3 .claude/hooks/docs_contract.py flag discussion "<topic>"` (Bash).
+   Append the discussion to this change's diary entry as it develops — dead
+   ends and rejected shapes especially, since those are what future-you would
+   otherwise re-walk. The next `git commit` blocks until it lands.
 2. Interrogate it briefly: what problem does it solve, which part of the
    system does it touch, what's the smallest useful version?
 3. Check it against reality: is it already in scope, explicitly cut, or

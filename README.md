@@ -17,7 +17,7 @@ Knowledge is **always in-repo**, including for the grade5 partnership repo (owne
 
 ## The always-loaded guarantee
 
-The ecosystem loads at **every** session start, regardless of task. The `session_boot` hook (SessionStart) emits: project + profile name, the head of `.memory/STATE.md` (with a staleness warning past 7 days), open VERIFY/ISSUES counts, the tail of the newest diary entry, git status (branch / dirty files / unpushed commits), and the `always_load` list with the instruction to Read each file before substantive work.
+The ecosystem loads at **every** session start, regardless of task. The `session_boot` hook (SessionStart) emits: project + profile name, the head of `.memory/STATE.md` (with a staleness warning past 7 days), open VERIFY/ISSUES counts, the tail of this branch's diary entry, git status (branch / dirty files / unpushed commits), and the `always_load` list with the instruction to Read each file before substantive work.
 
 ### Headless bootstrap contract
 

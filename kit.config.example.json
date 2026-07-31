@@ -90,5 +90,6 @@
     "blocked": [],
     "allowed": []
   },
-  "diary": true
+  "diary": true,
+  "diary_scope": "branch"
 }

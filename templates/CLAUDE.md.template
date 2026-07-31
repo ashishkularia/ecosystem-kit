@@ -26,8 +26,11 @@ commands, branch types, domain map).
 - Speculative thought → [.memory/IDEAS.md](.memory/IDEAS.md). Never act on it unasked.
 - Changed but not yet verifiable → [.memory/VERIFY.md](.memory/VERIFY.md)
   with acceptance criteria; drain via `/verify`.
-- Session end → today's entry in `.memory/diary/` (`/diary`; the Stop gate
-  checks it when the profile enables diary).
+- A decision made, a discussion that changed the plan, a surprise → append to
+  this change's diary entry in `.memory/diary/` **as it happens** (`/diary`).
+  One entry per branch/MR by default, so everything about a change stays
+  together. Do not save it for session end: the pre-commit gate asks for it at
+  the commit that carries the decision, and the Stop gate checks it again.
 - A change that makes a `.memory/contexts/` or `.memory/references/` doc
   stale → update it in the same session (context_attach surfaces the paired
   doc; see `.memory/contexts/README.md`).

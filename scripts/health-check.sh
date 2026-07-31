@@ -298,7 +298,7 @@ else:
 PYEOF
 )
   if [ "$diary_age" = "none" ]; then
-    warn "no diary entries yet (.memory/diary/YYYY-MM-DD.md; docs_contract will require one)"
+    warn "no diary entries yet (.memory/diary/; branch scope: YYYY-MM-DD-<branch>.md — docs_contract will require one)"
   elif [ "$diary_age" -le 3 ] 2>/dev/null; then
     ok "newest diary entry is ${diary_age} day(s) old"
   else

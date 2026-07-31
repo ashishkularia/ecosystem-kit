@@ -138,9 +138,24 @@ def git_summary():
     return branch, dirty, unpushed
 
 
-def newest_diary():
-    files = sorted(glob.glob(os.path.join(MEMORY_DIR, "diary", "*.md")))
-    return files[-1] if files else None
+def newest_diary(branch=""):
+    """The diary entry most worth re-reading at session start.
+
+    Under branch-scoped diaries the file that matters is THIS branch's — a
+    resumed MR session needs its own history, not whatever entry happens to
+    sort last. Falls back to the most recently MODIFIED entry (not the
+    last-sorted: branch-named files interleave with dated ones, so filename
+    order stops tracking recency once both exist)."""
+    diary_dir = os.path.join(MEMORY_DIR, "diary")
+    if branch:
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "-", branch.strip()).strip("-.")[:80]
+        mine = sorted(glob.glob(os.path.join(diary_dir, f"*-{slug}.md")))
+        if mine:
+            return mine[-1]
+    files = glob.glob(os.path.join(diary_dir, "*.md"))
+    if not files:
+        return None
+    return max(files, key=lambda p: (os.path.getmtime(p), p))
 
 
 def build_context():
@@ -171,15 +186,19 @@ def build_context():
     parts.append(f"## Open work: VERIFY {verify_label} · ISSUES {issues_label}")
     parts.append("")
 
-    # Newest diary tail
-    diary = newest_diary()
+    # Git (read before the diary: branch selects which diary is the relevant one)
+    branch, dirty, unpushed = git_summary()
+
+    # Diary tail — this branch's entry when there is one
+    diary = newest_diary(branch)
     if diary:
-        parts.append(f"## Latest diary ({os.path.basename(diary)}, last 20 lines)")
+        mine = bool(branch) and os.path.basename(diary).endswith(
+            re.sub(r"[^A-Za-z0-9._-]+", "-", branch.strip()).strip("-.")[:80] + ".md")
+        label = "this branch's diary" if mine else "latest diary (other branch/date)"
+        parts.append(f"## {label} ({os.path.basename(diary)}, last 20 lines)")
         parts.append("".join(tail_lines(diary, 20)).rstrip())
         parts.append("")
 
-    # Git
-    branch, dirty, unpushed = git_summary()
     parts.append(f"## Git: branch `{branch}` · {dirty} dirty file(s) · {unpushed} unpushed commit(s)")
     parts.append("")
 

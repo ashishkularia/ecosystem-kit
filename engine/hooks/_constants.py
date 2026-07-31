@@ -65,6 +65,10 @@ _KIT_DEFAULTS = {
     },
     "file_write_rules": {"blocked": [], "allowed": []},
     "diary": True,
+    # "branch": one diary per branch/MR (`YYYY-MM-DD-<branch-slug>.md`), so a
+    # change's discussion and decisions stay together and survive the days it
+    # spans. "daily": the legacy one-file-per-date behavior.
+    "diary_scope": "branch",
 }
 
 _kit_cache = None
