@@ -17,6 +17,7 @@ rather than re-deriving them (never from the shell cwd, which can drift).
 
 import json
 import os
+import re
 
 HOOKS_DIR = os.path.dirname(os.path.realpath(__file__))
 # <repo>/.claude/hooks -> <repo>/.claude -> <repo>
@@ -192,3 +193,125 @@ SOURCE_EXTENSIONS = {".php", ".ts", ".tsx", ".js", ".jsx", ".py", ".go", ".rb"}
 PROTECTED_FILES = [
     ".claude/settings.local.json",
 ]
+
+
+# ── Shell command splitting (security primitive) ────────────────────
+# The single implementation for every guard. It used to be copy-pasted into
+# guard_protected_merge / guard_dangerous_commands / guard_branch_naming, and
+# the copies DRIFTED — only one of them ever learned to extract `$(...)`. A
+# security parser with three forks gets fixed in one of them.
+#
+# The 2026-08-01 bypass: splitting on `&&`, `||`, `;` but not `|` made
+# `git push | tail -2` parse as ONE command whose push arguments are
+# ['|', 'tail', '-2'], so `tail` read as an explicit (unprotected) destination
+# and the push to a protected branch was allowed through.
+_REDIRECT_PRECEDING = ">"
+
+# Words that can precede the real command word in a fragment. Left in place,
+# they become the "command" a guard inspects, so `do git push` (from a for
+# loop) and `sudo git push` both read as not-git and sail past. Assignments
+# (`FOO=bar git push`) are stripped by the `=` rule below.
+_LEADING_NOISE = frozenset({
+    "if", "then", "elif", "else", "fi", "while", "until", "do", "done",
+    "for", "in", "case", "esac", "select", "function", "time", "!",
+    "sudo", "command", "builtin", "exec", "nohup", "env", "xargs", "eval",
+})
+
+
+def _strip_leading_noise(fragment):
+    """Drop shell keywords, wrappers and env assignments so a fragment starts
+    with the command word a guard needs to see."""
+    tokens = fragment.split()
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok in _LEADING_NOISE:
+            i += 1
+            continue
+        # VAR=value prefix (never a command word: no '=' before the first '/')
+        if "=" in tok and not tok.startswith("=") and "/" not in tok.split("=", 1)[0]:
+            i += 1
+            continue
+        break
+    return " ".join(tokens[i:]) if i else fragment
+
+
+def split_shell_commands(command):
+    """Split a shell command line into simple commands, respecting quotes.
+
+    Splits on every unquoted operator that can begin a new command —
+    ``&&`` ``||`` ``;`` ``|`` ``&`` and newline — plus the grouping and
+    substitution delimiters ``(`` ``)`` ``{`` ``}`` and backticks, so
+    ``(git push)``, ``$(git push)`` and ``` `git push` ``` cannot hide a
+    command from a guard. ``$(...)`` and backtick bodies are ALSO appended
+    whole, so a substitution is still checked when its delimiters are
+    unbalanced or nested.
+
+    ``&`` is literal when it follows ``>`` (``2>&1``, ``>&2``) — that is a
+    redirection, not a background operator.
+
+    Deliberately OVER-splits rather than under-splits: this feeds security
+    guards, where an extra fragment costs at most a false positive, while a
+    missed fragment is a bypass.
+    """
+    commands = []
+    current = []
+    in_single = False
+    in_double = False
+    i = 0
+
+    def flush():
+        cmd = "".join(current).strip()
+        current.clear()
+        if not cmd:
+            return
+        commands.append(cmd)
+        stripped = _strip_leading_noise(cmd)
+        # Keep BOTH: the raw fragment (patterns that match whole command lines)
+        # and the stripped one (guards that inspect the first token).
+        if stripped and stripped != cmd:
+            commands.append(stripped)
+
+    while i < len(command):
+        c = command[i]
+        if c == "'" and not in_double:
+            in_single = not in_single
+            current.append(c)
+            i += 1
+            continue
+        if c == '"' and not in_single:
+            in_double = not in_double
+            current.append(c)
+            i += 1
+            continue
+        if not in_single and not in_double:
+            if command[i:i + 2] in ("&&", "||"):
+                flush()
+                i += 2
+                continue
+            if c == "&":
+                prev = "".join(current).rstrip()
+                if prev.endswith(_REDIRECT_PRECEDING):
+                    current.append(c)  # 2>&1 / >&2 — redirection, not a separator
+                    i += 1
+                    continue
+                flush()
+                i += 1
+                continue
+            if c in (";", "|", "\n", "(", ")", "{", "}", "`"):
+                flush()
+                i += 1
+                continue
+        current.append(c)
+        i += 1
+
+    flush()
+
+    # Substitution bodies, checked whole as well as via the delimiter splits.
+    for pattern in (r"\$\(([^)]+)\)", r"`([^`]+)`"):
+        for match in re.finditer(pattern, command):
+            inner = match.group(1).strip()
+            if inner and inner not in commands:
+                commands.append(inner)
+
+    return commands

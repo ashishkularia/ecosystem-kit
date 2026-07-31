@@ -66,6 +66,21 @@ def make_kit(**overrides):
     return kit
 
 
+def _real_split_shell_commands(command):
+    """Load the real splitter from _constants.py by source, without importing
+    the module (the stub exists precisely for when that import is impossible).
+    Falls back to a single-command list only if the source is unreadable."""
+    path = os.path.join(HOOKS_DIR, "_constants.py")
+    try:
+        src = open(path, encoding="utf-8").read()
+        start = src.index("def split_shell_commands(")
+        ns = {"re": __import__("re"), "_REDIRECT_PRECEDING": ">"}
+        exec(src[start:], ns)
+        return ns["split_shell_commands"](command)
+    except Exception:
+        return [command.strip()] if command.strip() else []
+
+
 def _ensure_constants():
     """Import the real _constants, or inject a spec-conformant stub."""
     if "_constants" in sys.modules:
@@ -83,6 +98,9 @@ def _ensure_constants():
         "guard_protected_merge", "docs_contract",
     }
     stub.load_kit = lambda force_reload=False: make_kit()
+    # Security primitive shared by every guard — the stub must behave like the
+    # real one or a guard test would silently exercise different parsing.
+    stub.split_shell_commands = _real_split_shell_commands
     stub.SECRET_PATTERNS = []
     stub.PASSWORD_PATTERN = r"""password\s*[:=]\s*['"]([^'"]+)['"]"""
     stub.GENERIC_SECRET_PATTERN = r"""secret\s*[:=]\s*['"]([^'"]{8,})['"]"""
