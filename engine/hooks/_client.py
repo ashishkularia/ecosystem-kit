@@ -85,6 +85,16 @@ def try_daemon(hook_name, payload_str):
         # deadlock: restarting the daemon itself needs a tool call).
         if response.get("exit_code") == 2 and response.get("stdout", "").startswith("Unknown hook:"):
             return False, 0, "", ""
+        # A daemon whose hook files changed on disk (update.sh ran) answers
+        # stale once and exits. Direct exec runs the current on-disk code;
+        # clearing the cooldown lets the next call start a fresh daemon
+        # immediately instead of waiting out the rate limit.
+        if response.get("exit_code") == 2 and response.get("stdout", "").startswith("Stale daemon:"):
+            try:
+                os.unlink(AUTO_START_COOLDOWN_FILE)
+            except OSError:
+                pass
+            return False, 0, "", ""
         return True, response.get("exit_code", 0), response.get("stdout", ""), response.get("stderr", "")
     except (socket.error, ConnectionRefusedError, json.JSONDecodeError, OSError):
         return False, 0, "", ""

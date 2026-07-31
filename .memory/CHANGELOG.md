@@ -1,5 +1,27 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-01 — Three fixes from the 2026-08-01 weekly-hygiene sweep, all
+  self-diagnosed by the ecosystem running on itself. (1) **health-check.sh now
+  ships into targets** (`.claude/scripts/`, installed + refreshed like the
+  engine): targets kept whichever copy they were installed with forever, so
+  DevContainer sat on a pre-`$CLAUDE_PROJECT_DIR` copy that flagged the kit's
+  own canonical wiring as an ERR — a permanent red 85% health score from a
+  fixed-upstream bug. Reproduced on a scratch install (ERR=1 → ERR=0 after
+  `update.sh`). (2) **Daemon detects its own staleness**: it imports hooks once,
+  so a daemon predating an `update.sh` enforces yesterday's rules — a stale
+  `guard_protected_merge` wrongly blocked the mylantite#34 rebase on 07-31.
+  Every request now compares a signature over all `hooks/*.py` (internals
+  included) against load time; on mismatch it retires its socket + PID file,
+  answers `Stale daemon:`, and exits, while `_client.py` treats that as a
+  fall-back (never a block), clears the auto-start cooldown, and direct-execs
+  the current on-disk code. Retirement is ownership-checked so a retiring
+  daemon cannot unlink its successor's endpoint. (3) **session_boot counts
+  drifted rosters**: `- [ ]` is the convention, but meritick's dated-bullet
+  format made the banner report "ISSUES 0 unchecked" against 39 real open
+  entries; the counter now falls back to per-entry dated-bullet counting
+  (closure markers honored on continuation lines) and flags the drift.
+  Engine suite 94 → 118 tests, green.
+
 - 2026-07-31 — `tools/prune-stale-branches`: a daily cron (06:52) that deletes
   merged/stale LOCAL branches across every registered repo — pure git + GitHub
   API, no AI tokens. Two provably-safe tiers: Tier 1 = branches merged into the
