@@ -30,9 +30,11 @@ Roster mapping:
 
 This hook is in BLOCKING_HOOKS: engine-level crashes fail CLOSED.
 """
+import glob
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import date
@@ -108,11 +110,69 @@ def mtime(path: str) -> float:
         return 0.0
 
 
-def diary_satisfied(after_ts: float) -> bool:
-    """Today's diary exists and was touched after `after_ts`."""
+def touched_since(path: str, after_ts: float) -> bool:
+    """Was `path` written at or after `after_ts`?
+
+    Compared at WHOLE-SECOND resolution, and inclusively. Filesystem mtime
+    granularity is not guaranteed finer than one second (it is exactly 1s on
+    several filesystems), so a strict float comparison calls a file written
+    milliseconds AFTER the flag "older" and blocks someone who did the work —
+    which is precisely the fast path, since recording a decision and writing
+    the diary in the same turn happens in well under a second. The cost is a
+    sub-second window where a diary written just BEFORE the flag counts; that
+    is a far better failure than a gate that fires on correct behavior."""
+    m = mtime(path)
+    return m > 0 and int(m) >= int(after_ts)
+
+
+def current_branch() -> str:
+    """Current git branch, or "" when detached/not a repo (callers fall back to
+    the daily diary — a diary keyed on a branch that doesn't exist is worse than
+    a dated one)."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", PROJECT_ROOT, "symbolic-ref", "--quiet", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def branch_slug(branch: str) -> str:
+    """`fix/hygiene-findings-trio` -> `fix-hygiene-findings-trio`."""
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", branch.strip()).strip("-.")
+    return slug[:80]
+
+
+def diary_path() -> str:
+    """The diary file this change should be written into.
+
+    Under `diary_scope: "branch"` (default) one file covers the whole
+    branch/MR — `YYYY-MM-DD-<branch-slug>.md`, dated when the branch's diary
+    STARTED, so a change spanning days keeps its discussion in one place and
+    the filename still sorts chronologically. An existing file for the branch
+    is reused whatever its date prefix; only the first write picks a date.
+
+    Falls back to the dated file (`YYYY-MM-DD.md`) under
+    `diary_scope: "daily"`, on a detached HEAD, and outside a git repo."""
+    diary_dir = os.path.join(MEMORY_DIR, "diary")
     today = date.today().isoformat()
-    path = os.path.join(MEMORY_DIR, "diary", f"{today}.md")
-    return os.path.isfile(path) and mtime(path) > after_ts
+    if load_kit().get("diary_scope") != "branch":
+        return os.path.join(diary_dir, f"{today}.md")
+    slug = branch_slug(current_branch())
+    if not slug:
+        return os.path.join(diary_dir, f"{today}.md")
+    existing = sorted(glob.glob(os.path.join(diary_dir, f"*-{slug}.md")))
+    if existing:
+        return existing[-1]
+    return os.path.join(diary_dir, f"{today}-{slug}.md")
+
+
+def diary_satisfied(after_ts: float) -> bool:
+    """This change's diary exists and was touched after `after_ts`."""
+    path = diary_path()
+    return os.path.isfile(path) and touched_since(path, after_ts)
 
 
 def flag_satisfied(name: str, info: dict) -> bool:
@@ -123,7 +183,7 @@ def flag_satisfied(name: str, info: dict) -> bool:
     if roster is None:
         # Unknown flag name: satisfied when the diary catches up (best effort).
         return diary_satisfied(ts)
-    return mtime(os.path.join(MEMORY_DIR, roster)) > ts
+    return touched_since(os.path.join(MEMORY_DIR, roster), ts)
 
 
 def handle_post_tool(payload):
@@ -197,6 +257,7 @@ def handle_stop(payload):
     # Persist cleared flags but KEEP first_flag_ts while anything is owed.
     save_pending(data)
 
+    rel_diary = os.path.relpath(diary_path(), PROJECT_ROOT)
     reasons = []
     for name in unsatisfied:
         if name == "code_change":
@@ -204,11 +265,11 @@ def handle_stop(payload):
         elif name == "decision":
             reasons.append("record the decision in .memory/DECISIONS.md")
         elif name == "discussion":
-            reasons.append(f"write today's diary entry (.memory/diary/{date.today().isoformat()}.md)")
+            reasons.append(f"write this change's diary entry ({rel_diary})")
         else:
             reasons.append(f"resolve pending flag '{name}'")
     if kit.get("diary") and not diary_gate_ok and "discussion" not in unsatisfied:
-        reasons.append(f"write today's diary entry (.memory/diary/{date.today().isoformat()}.md)")
+        reasons.append(f"write this change's diary entry ({rel_diary})")
 
     reason = (
         "Docs contract: work this session is not yet reflected in the "
@@ -217,6 +278,52 @@ def handle_stop(payload):
     )
     print(json.dumps({"decision": "block", "reason": reason}))
     sys.exit(0)
+
+
+# Anchored to a command boundary (start of string, or after ; && || | newline)
+# so `echo git commit` and `grep "git commit" log` do not gate a commit that
+# isn't happening. This hook BLOCKS, so a loose match is not a harmless warning
+# the way it is in advisory guard_commit_message.
+GIT_COMMIT_RE = re.compile(
+    r"(?:\A|[;&|]|\n)\s*git\s+(?:-C\s+\S+\s+)?commit\b")
+
+
+def handle_pre_commit(payload):
+    """Commit-time checkpoint: a decision or discussion raised during this work
+    must be in the diary BEFORE the commit that carries it, not at session end.
+
+    Deliberately narrow. Only `decision`/`discussion` flags gate here — those
+    are the things whose reasoning evaporates once the session ends. A plain
+    `code_change` still rides to the Stop gate, so ordinary commits are never
+    interrupted by a hook that has nothing to say."""
+    kit = load_kit()
+    if not kit.get("diary"):
+        sys.exit(0)
+    command = (payload.get("tool_input", {}) or {}).get("command", "") or ""
+    if not GIT_COMMIT_RE.search(command):
+        sys.exit(0)
+
+    data = load_pending()
+    flags = data.get("flags", {})
+    owed = [n for n in ("decision", "discussion") if n in flags]
+    if not owed:
+        sys.exit(0)
+    # The oldest owed flag is what the diary has to have caught up with.
+    since = min(flags[n].get("ts", 0) for n in owed)
+    if diary_satisfied(since):
+        sys.exit(0)
+
+    rel = os.path.relpath(diary_path(), PROJECT_ROOT)
+    what = " and ".join(owed)
+    print(
+        f"Docs contract: a {what} was recorded while building this commit, but "
+        f"{rel} has not been updated since. Write it into the diary now — while "
+        f"the reasoning is still in front of you — then commit again.\n"
+        f"The diary covers this whole branch, so append to the existing entry "
+        f"rather than starting a new one.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 
 def main():
@@ -228,6 +335,8 @@ def main():
     event = payload.get("hook_event_name", "")
     if event == "Stop":
         handle_stop(payload)
+    elif event == "PreToolUse":
+        handle_pre_commit(payload)
     elif payload.get("tool_name") in ("Edit", "Write") or event == "PostToolUse":
         handle_post_tool(payload)
     else:
@@ -239,9 +348,25 @@ if __name__ == "__main__":
     #   python3 .claude/hooks/docs_contract.py flag decision "why"
     # argv is only consulted here — the daemon calls main() directly, so its
     # own argv ("start") can never leak into hook dispatch.
+    # Path resolution for command flows (/diary): the caller must not have to
+    # reimplement branch-slug + existing-file rules to find the right file.
+    if len(sys.argv) == 2 and sys.argv[1] == "diary-path":
+        try:
+            print(os.path.relpath(diary_path(), PROJECT_ROOT))
+        except Exception as e:
+            print(f"[ecosystem-kit] docs_contract diary-path failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
     if len(sys.argv) >= 3 and sys.argv[1] in ("flag", "set-flag"):
         try:
             set_flag(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
+            # Point the command flow at the diary the moment the decision is
+            # made — writing it now is the whole difference between a diary
+            # that reconstructs the day and one that recorded it.
+            if sys.argv[2] in ("decision", "discussion") and load_kit().get("diary"):
+                rel = os.path.relpath(diary_path(), PROJECT_ROOT)
+                print(f"Record this in {rel} now (append to the branch's entry) — "
+                      f"the commit gate will ask for it otherwise.")
         except Exception as e:
             # Flag-drop is plumbing for commands, not a gate: fail open.
             print(f"[ecosystem-kit] docs_contract flag failed: {e}", file=sys.stderr)

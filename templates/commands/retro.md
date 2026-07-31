@@ -20,4 +20,5 @@ next month.
    project using the ecosystem kit (a hook gap, a better command body, a
    template fix) — list each explicitly so the owner can carry it to the
    ecosystem-kit repo. Do not edit the kit from a project session.
-5. Write or append today's diary entry (/diary) if not already done.
+5. Append a closing block to this change's diary entry (/diary) if the session's
+   work is not already recorded there.

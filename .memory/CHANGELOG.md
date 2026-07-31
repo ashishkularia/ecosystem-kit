@@ -1,5 +1,32 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-01 — **Diaries are per-MR and written as the work happens** (owner
+  change). Scope: new `diary_scope` key, default `"branch"` — one entry per
+  branch/MR at `.memory/diary/YYYY-MM-DD-<branch-slug>.md`, dated when the
+  branch's diary started and reused for its whole life, so a change's
+  discussion and decisions stay together across the days it spans; `"daily"`
+  keeps the old behavior, and branch scope falls back to the dated file on a
+  detached HEAD or outside git. Timing: `docs_contract` gains a **PreToolUse
+  gate on `git commit`** — a pending `decision`/`discussion` flag whose diary
+  hasn't been touched blocks the commit, so reasoning lands at the commit that
+  carries it rather than being reconstructed at the Stop gate. Narrow by
+  design: a plain `code_change` never gates a commit (it rides to Stop), and
+  the `git commit` pattern is anchored to a command boundary so `echo git
+  commit` can't wedge an unrelated command. `session_boot` now surfaces *this
+  branch's* diary (labelling the fallback honestly); `/decide`, `/idea`,
+  `/diary`, `/retro`, and the self-check skill were rewritten around
+  write-as-you-go; `docs_contract.py diary-path` resolves the current file so
+  command flows don't reimplement the rules. Installed repos inherit branch
+  scope via `load_kit()` defaults without editing their project-owned
+  `kit.json`. Also fixes a latent freshness bug the new gate exposed as a
+  1-in-8 flake: mtime comparisons were strict floats against `time.time()`,
+  but filesystem mtime granularity is not guaranteed finer than one second, so
+  a diary written milliseconds *after* a flag could stat as older and block
+  correct work — on the fast path, since `/decide` now writes the diary in the
+  same turn. `touched_since()` compares at whole-second resolution,
+  inclusively, for both diary and roster files. Engine suite 118 → 136 tests,
+  green (20/20 consecutive runs).
+
 - 2026-08-01 — Three fixes from the 2026-08-01 weekly-hygiene sweep, all
   self-diagnosed by the ecosystem running on itself. (1) **health-check.sh now
   ships into targets** (`.claude/scripts/`, installed + refreshed like the

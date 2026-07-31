@@ -17,6 +17,13 @@ conversation; if genuinely ambiguous which call is meant, ask).
    are never edited or deleted.
 5. Add the entry at the top of the list:
    `- YYYY-MM-DD — **the decision as a rule** — the why.`
+5b. Append the decision to this change's diary entry **now**, in the same turn
+   — the DECISIONS line is the rule, the diary block is the story around it
+   (what was considered, what was rejected, what nearly went wrong). Resolve
+   the file with `python3 .claude/hooks/docs_contract.py diary-path`. Writing
+   it now is the point: a diary reconstructed at session end has already lost
+   the reasoning. The pre-commit gate will block the next `git commit` until
+   this lands.
 6. If it's an always/never rule about code, propose encoding it as a red
    test in the same session (escalation path + watermark pattern:
    `.memory/references/engineering-principles.md`). Mirror pure style rules

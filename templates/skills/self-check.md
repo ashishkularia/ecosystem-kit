@@ -81,7 +81,9 @@ review-fix past 3 rounds, or getting identical output twice? Thresholds and acti
 - All `quality_commands` green before commit
 - Conventional Commit format; specific files staged; no secrets
 - Branch type from `kit.json` `branch_types`; protected branches untouched
-- `.memory/CHANGELOG.md` entry written; diary written if `kit.json` `diary`
+- `.memory/CHANGELOG.md` entry written; this change's diary entry appended to
+  if `kit.json` `diary` (any decision or discussion must already be in it — the
+  pre-commit gate blocks otherwise)
 - Push presented as a human gate; merge left to the owner
 
 ## When a Self-Check Fails

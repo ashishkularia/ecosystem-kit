@@ -30,6 +30,10 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py\" guard_protected_merge"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py\" docs_contract"
           }
         ]
       },
