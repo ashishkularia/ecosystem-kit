@@ -236,6 +236,39 @@ def _strip_leading_noise(fragment):
     return " ".join(tokens[i:]) if i else fragment
 
 
+_HEREDOC_RE = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def _strip_heredoc_bodies(command):
+    """Remove heredoc BODIES; keep the command line that opens them.
+
+    A heredoc body is DATA, not commands — `git commit -F - <<'EOF' … EOF`
+    carrying a message that mentions `git push origin main` must not read as a
+    push. This became load-bearing when newline joined the separator set:
+    without it every line of a commit message parses as its own command. Same
+    principle as blanking quoted spans for guard_dangerous_commands, so a
+    commit message may discuss `rm -rf` (2026-07-23).
+    """
+    if "<<" not in command:
+        return command
+    result = command
+    for _ in range(20):  # bounded: pathological input must not spin
+        m = _HEREDOC_RE.search(result)
+        if not m:
+            break
+        nl = result.find("\n", m.end())
+        if nl == -1:
+            # Marker with no body in this string — drop the marker so it does
+            # not re-match forever.
+            result = result[:m.start()] + result[m.end():]
+            continue
+        term = re.search(r"^[ \t]*%s[ \t]*$" % re.escape(m.group(2)),
+                         result[nl + 1:], re.M)
+        end = nl + 1 + (term.end() if term else len(result) - nl - 1)
+        result = result[:m.start()] + result[m.end():nl + 1] + result[end:]
+    return result
+
+
 def split_shell_commands(command):
     """Split a shell command line into simple commands, respecting quotes.
 
@@ -254,6 +287,7 @@ def split_shell_commands(command):
     guards, where an extra fragment costs at most a false positive, while a
     missed fragment is a bypass.
     """
+    command = _strip_heredoc_bodies(command)
     commands = []
     current = []
     in_single = False

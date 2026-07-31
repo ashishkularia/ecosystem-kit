@@ -71,11 +71,25 @@ def discover_hook_modules():
 
 
 def hooks_signature():
-    """Fingerprint of every hook file on disk — including _-prefixed internals,
-    since a hook's behavior changes when _constants.py does. Compared per
-    request against the value captured at load time."""
+    """Fingerprint of everything that decides how a hook behaves — every hook
+    file (including `_`-prefixed internals, since behavior changes when
+    _constants.py does) AND the project profile.
+
+    kit.json belongs here because `load_kit()` memoizes per process: in a
+    long-lived daemon an edited profile stays invisible until restart, so the
+    daemon keeps enforcing the OLD gates, protected branches and source
+    patterns. Found by running the kit on itself (2026-08-01) — the first
+    session_boot after writing .claude/kit.json still reported the default
+    profile. Same class of bug as the stale hook code this check was written
+    for; the fix was incomplete without it."""
+    watched = sorted(glob.glob(os.path.join(HOOKS_DIR, "*.py")))
+    try:
+        from _constants import KIT_JSON
+        watched.append(KIT_JSON)
+    except Exception:
+        pass
     sig = []
-    for path in sorted(glob.glob(os.path.join(HOOKS_DIR, "*.py"))):
+    for path in watched:
         try:
             st = os.stat(path)
             sig.append((os.path.basename(path), st.st_mtime_ns, st.st_size))

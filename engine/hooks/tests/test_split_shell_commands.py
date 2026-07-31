@@ -104,6 +104,47 @@ class LiteralPreservationTest(unittest.TestCase):
         self.assertEqual(split(" ; | && "), [])
 
 
+class HeredocTest(unittest.TestCase):
+    """A heredoc body is DATA, not commands.
+
+    Adding newline to the separator set made every line of a commit message
+    parse as its own command, so `git commit -F - <<'EOF' … EOF` with a message
+    mentioning `git push origin main` blocked itself. Caught the moment the kit
+    was installed on the kit — this commit could not be written until it was
+    fixed. Same principle as blanking quoted spans so a commit message may
+    discuss `rm -rf` (2026-07-23).
+    """
+
+    COMMIT = "git commit -F - <<'EOF'\n%s\nEOF\ngit log --oneline -1"
+
+    def test_message_body_is_not_parsed_as_commands(self):
+        out = split(self.COMMIT % "a message that says git push origin main")
+        self.assertNotIn("git push origin main", out)
+        self.assertIn("git log --oneline -1", out)
+
+    def test_multiline_message_body_is_dropped_entirely(self):
+        body = "first line\ngit push origin main\nrm -rf /\nlast line"
+        out = split(self.COMMIT % body)
+        for leaked in ("git push origin main", "rm -rf /", "first line"):
+            self.assertNotIn(leaked, out)
+
+    def test_a_real_command_after_the_heredoc_is_still_found(self):
+        out = split("git commit -F - <<'EOF'\nmsg\nEOF\ngit push origin main")
+        self.assertIn("git push origin main", out)
+
+    def test_unquoted_and_dash_forms(self):
+        for opener in ("<<EOF", "<<-EOF", '<<"EOF"'):
+            out = split(f"git commit -F - {opener}\ngit push origin main\nEOF")
+            self.assertNotIn("git push origin main", out, opener)
+
+    def test_unterminated_heredoc_does_not_hang_or_leak(self):
+        out = split("git commit -F - <<'EOF'\nstuff git push origin main")
+        self.assertNotIn("git push origin main", out)
+
+    def test_command_without_heredoc_is_unaffected(self):
+        self.assertEqual(split("git push | tail -2"), ["git push", "tail -2"])
+
+
 class SharedImplementationTest(unittest.TestCase):
     """All three guards must resolve to the ONE implementation. They used to
     each carry a copy, and the copies drifted — only guard_dangerous_commands

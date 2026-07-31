@@ -89,6 +89,14 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 
 (Note the distinction: fail-open hooks still *block* when they run correctly and find a violation — the table is about crash behavior only.)
 
+### The kit runs on itself — wired, not copied
+
+This repo is a kit target like any other, with one deliberate difference: `.claude/settings.json` wires the hook roster at **`engine/hooks/_client.py`**, the live source, instead of a copy under `.claude/hooks/`. A copy here would be a second engine drifting from the one under active development — edit `engine/hooks/x.py` and the repo keeps enforcing the stale copy — which is the same failure that produced three forked command splitters and a daemon serving pre-update hooks. `update.sh` refuses the kit repo, so nothing would ever refresh such a copy.
+
+This is not an exception to *copy, never symlink*: that rule exists so every installed **target** works standalone in a clone or CI, and the kit cannot be standalone from itself. It needs no engine changes, because `engine/hooks/` sits at the same depth as `.claude/hooks/` and `PROJECT_ROOT = dirname(dirname(HOOKS_DIR))` resolves identically. `health-check.sh` therefore **derives** the hooks directory from the wiring rather than assuming a fixed path, and covers both layouts with one script.
+
+Before this, the kit repo had no repo-level hooks at all — the machine-level guard matches only GitHub MCP tools, so a Bash `git push` to `main` here was stopped by nothing except the opt-in `safe-push`. The repo whose bugs propagate to every other repo was the only one with no enforcement.
+
 ### Command splitting is a shared security primitive
 
 Every Bash guard finds the commands it must inspect through **one** `split_shell_commands` in `_constants.py`. No guard may define its own: the three guards each carried a private copy and the copies had already drifted (40/56/40 lines, only one of which extracted `$(…)`), which is exactly how the 2026-08-01 push bypass survived — a security parser with three forks gets fixed in one of them. A test fails if any `guard_*.py` re-defines it.
