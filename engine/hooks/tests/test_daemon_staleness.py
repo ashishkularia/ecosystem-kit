@@ -63,6 +63,27 @@ class HooksSignatureTest(unittest.TestCase):
             f.write("BLOCKING_HOOKS = ('guard_x',)\n")
         self.assertNotEqual(MOD.hooks_signature(), before)
 
+    def test_signature_tracks_the_project_profile(self):
+        # load_kit() memoizes per process, so in a long-lived daemon an edited
+        # kit.json stays invisible until restart and the daemon keeps enforcing
+        # the OLD gates / protected branches / source patterns. Found by running
+        # the kit on itself: the first session_boot after writing .claude/kit.json
+        # still reported the default profile.
+        self.write("guard_x.py", "def main():\n    pass\n")
+        kit_dir = os.path.join(self.tmp, "kit")
+        os.makedirs(kit_dir, exist_ok=True)
+        kit_json = os.path.join(kit_dir, "kit.json")
+        with open(kit_json, "w") as f:
+            f.write('{"project": "before"}')
+
+        import _constants
+        with _support.patched(_constants, KIT_JSON=kit_json):
+            before = MOD.hooks_signature()
+            with open(kit_json, "w") as f:
+                f.write('{"project": "after", "protected_branches": ["main"]}')
+            self.assertNotEqual(MOD.hooks_signature(), before,
+                                "an edited kit.json must invalidate the daemon")
+
     def test_signature_changes_when_hook_added_or_removed(self):
         self.write("guard_x.py", "def main():\n    pass\n")
         before = MOD.hooks_signature()

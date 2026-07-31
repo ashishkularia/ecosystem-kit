@@ -93,8 +93,32 @@ fi
 # ── 2. Engine: required files present + valid Python ───────────────
 section "Engine"
 
+# Where the engine actually lives, read from the wiring rather than assumed.
+# Installed targets get a COPY at .claude/hooks/; the kit repo wires straight
+# at its own engine/hooks/ source, because a copy there would be a second
+# engine that drifts from the one under development. Deriving the path keeps
+# one health-check honest about both layouts.
+HOOKS_REL="$(python3 - <<'PYEOF'
+import json, os, re
+try:
+    settings = json.load(open(".claude/settings.json"))
+except (OSError, ValueError):
+    print(".claude/hooks"); raise SystemExit
+for groups in (settings.get("hooks") or {}).values():
+    for group in groups:
+        for hook in group.get("hooks", []):
+            m = re.search(r'\$CLAUDE_PROJECT_DIR/(.+?)/_client\.py', hook.get("command", ""))
+            if m and os.path.isdir(m.group(1)):
+                print(m.group(1)); raise SystemExit
+print(".claude/hooks")
+PYEOF
+)"
+if [ "$HOOKS_REL" != ".claude/hooks" ]; then
+  ok "engine wired at $HOOKS_REL/ (kit-on-itself layout: live source, not a copy)"
+fi
+
 for core in _client.py _daemon.py _constants.py session_boot.py docs_contract.py; do
-  if [ -f "$CLAUDE_DIR/hooks/$core" ]; then
+  if [ -f "$HOOKS_REL/$core" ]; then
     ok "hooks/$core present"
   else
     err "hooks/$core missing (core engine file)"
@@ -105,7 +129,7 @@ done
 # <hook>` — the executable bit is NOT required, only valid syntax.
 compile_fail=0
 hook_files=0
-for hook in "$CLAUDE_DIR"/hooks/*.py; do
+for hook in "$HOOKS_REL"/*.py; do
   [ -e "$hook" ] || continue
   hook_files=$((hook_files+1))
   if ! python3 -c "import py_compile, sys; py_compile.compile(sys.argv[1], doraise=True)" "$hook" 2>/dev/null; then
@@ -114,12 +138,12 @@ for hook in "$CLAUDE_DIR"/hooks/*.py; do
   fi
 done
 if [ "$hook_files" -eq 0 ]; then
-  err "no hook modules found in .claude/hooks/"
+  err "no hook modules found in $HOOKS_REL/"
 elif [ "$compile_fail" -eq 0 ]; then
   ok "all $hook_files hook module(s) compile"
 fi
 
-if [ -d "$CLAUDE_DIR/hooks/tests" ]; then
+if [ -d "$HOOKS_REL/tests" ] && [ "$HOOKS_REL" = ".claude/hooks" ]; then
   warn "hooks/tests/ present in the installed repo (engine tests belong in the kit only)"
 fi
 
@@ -140,7 +164,7 @@ else
   # -> "session_boot") — unaffected by the command prefix. The daemon derives
   # HOOK_MODULES by globbing the hooks dir, so the glob IS the module roster:
   # settings wiring must match it exactly.
-  wiring_report=$(python3 - <<'PYEOF'
+  wiring_report=$(HOOKS_REL="$HOOKS_REL" python3 - <<'PYEOF'
 import json, os
 problems = []
 try:
@@ -152,9 +176,13 @@ bad_prefix = []
 # Canonical wiring is cwd-independent via $CLAUDE_PROJECT_DIR (set by Claude
 # Code on every hook run); the bare relative form is tolerated for installs
 # that predate the cwd fix but breaks when the session cwd leaves the repo root.
+# Canonical for an installed target is .claude/hooks/. The kit repo wires at
+# its own engine source instead (a copy there would drift from the engine under
+# development), so the hooks dir is read from the environment rather than fixed.
+HOOKS_REL = os.environ.get("HOOKS_REL", ".claude/hooks")
 ALLOWED_PREFIXES = (
-    'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py"',
-    "python3 .claude/hooks/_client.py",
+    'python3 "$CLAUDE_PROJECT_DIR/%s/_client.py"' % HOOKS_REL,
+    "python3 %s/_client.py" % HOOKS_REL,
 )
 for groups in (settings.get("hooks") or {}).values():
     for g in groups:
@@ -167,7 +195,7 @@ for groups in (settings.get("hooks") or {}).values():
                 wired.add(parts[-1])
             if not cmd.startswith(ALLOWED_PREFIXES):
                 bad_prefix.append(cmd)
-modules = {f[:-3] for f in os.listdir(".claude/hooks")
+modules = {f[:-3] for f in os.listdir(HOOKS_REL)
            if f.endswith(".py") and not f.startswith("_")}
 if modules - wired:
     problems.append("hook modules on disk but not wired: " + ", ".join(sorted(modules - wired)))
@@ -215,8 +243,8 @@ fi
 # ── 4. Daemon ───────────────────────────────────────────────────────
 section "Hook Daemon"
 
-if [ -f "$CLAUDE_DIR/hooks/.daemon.pid" ] && kill -0 "$(cat "$CLAUDE_DIR/hooks/.daemon.pid" 2>/dev/null)" 2>/dev/null; then
-  ok "daemon running (PID $(cat "$CLAUDE_DIR/hooks/.daemon.pid"))"
+if [ -f "$HOOKS_REL/.daemon.pid" ] && kill -0 "$(cat "$HOOKS_REL/.daemon.pid" 2>/dev/null)" 2>/dev/null; then
+  ok "daemon running (PID $(cat "$HOOKS_REL/.daemon.pid"))"
 else
   warn "daemon not running (auto-starts on first hook call; _client.py falls back to direct exec)"
 fi

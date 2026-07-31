@@ -1,5 +1,42 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-01 — **Heredoc bodies are stripped before command splitting.** Adding
+  newline to the separator set (the morning's bypass fix) made every line of a
+  heredoc body parse as its own command, so `git commit -F - <<'EOF' … EOF`
+  whose MESSAGE mentioned `git push origin main` blocked itself — a false
+  positive sitting directly on the path of writing about the guards. Bodies are
+  data, not commands: the opening line is kept, the body dropped, and a real
+  command after the terminator is still found. Same principle as blanking
+  quoted spans so a commit message may discuss `rm -rf` (2026-07-23). Found by
+  running the kit on itself — it blocked the very commit that installed it.
+
+- 2026-08-01 — **The kit now runs on itself.** This repo had NO repo-level
+  hooks — `guard_protected_merge` never ran here in any form, and the
+  machine-level guard only matches GitHub MCP tools, so a Bash `git push` to
+  main was intercepted by nothing but the opt-in `safe-push`. The
+  highest-consequence repo on the machine was the only one with zero
+  enforcement. Installed by **wiring, not copying**: `.claude/settings.json`
+  points the same 16 hook entries at `engine/hooks/_client.py`, the live
+  source. A copy would be a second engine drifting from the one under
+  development — the exact bug class fixed twice today (three forked splitters;
+  a daemon serving pre-update hooks) — and `update.sh` refuses the kit repo
+  anyway. Needs zero engine changes: `engine/hooks/` sits at the same depth as
+  `.claude/hooks/`, so `PROJECT_ROOT` derivation is unchanged. Adds
+  `profiles/ecosystem-kit.json` (gates: unittest suite, install round-trip,
+  blast-radius review) and `.claude/kit.json`; `health-check.sh` now DERIVES
+  the hooks directory from the wiring instead of assuming `.claude/hooks/`, so
+  one script is honest about both layouts. Kit repo 55%/6 ERRs → **100%,
+  21/21**; normal installs re-verified unchanged. Closes the 2026-08-01
+  kit-not-installed-on-itself issue.
+- 2026-08-01 — **Daemon staleness now covers the project profile, not just hook
+  code.** `load_kit()` memoizes per process, so a long-lived daemon kept
+  enforcing the OLD gates, protected branches and source patterns after an edit
+  to `.claude/kit.json` — this morning's `hooks_signature()` fingerprinted
+  `hooks/*.py` only. Found within minutes of running the kit on itself: the
+  first `session_boot` after writing `.claude/kit.json` still reported the
+  default profile. `kit.json` is now part of the signature; verified live that
+  touching it retires the daemon.
+
 - 2026-08-01 — **SECURITY: guard_protected_merge could be walked around with
   ordinary shell syntax.** `split_shell_commands` split on `&&`, `||`, `;` and
   nothing else, so `git push | tail -2` parsed as ONE command whose push
