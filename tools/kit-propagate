@@ -20,6 +20,11 @@ kit-version stamp is behind kit main, it produces ONE update PR:
 POLICY PATCHES (kit-wide owner rules applied outside update.sh's scope):
   - attribution {commit:"", pr:"", sessionUrl:false} merged into
     .claude/settings.json when absent (owner rule 2026-07-29).
+  - missing kit hook wiring appended to .claude/settings.json (ADDITIVE only:
+    never removes, reorders, or touches project-local hooks). Without it a kit
+    change that wires an existing hook onto a NEW event ships as dead code —
+    the module updates but nothing calls it, because update.sh deliberately
+    never rewrites project-owned settings.json.
 
 Modes: run (default) | check (STRICTLY read-only — reports who is behind,
 mutates nothing; a dry-run that consumes state is a bug, learned on the
@@ -114,6 +119,58 @@ def patch_attribution(wt):
     return True
 
 
+def patch_hook_wiring(wt):
+    """Add kit hook wirings the target's settings.json is missing.
+
+    update.sh ships engine FILES but never rewrites settings.json (it is
+    project-owned — homeassistant, for one, wires a project-local guard_lint_md
+    there). So a kit change that wires an existing hook onto a NEW event
+    reaches every repo as dead code: the module updates, nothing calls it. That
+    is how the 2026-08-01 pre-commit diary gate would have silently not existed
+    in any already-installed repo.
+
+    Strictly ADDITIVE: appends a (event, matcher, hook) triple only when the
+    template has it and the target does not. Never removes, never reorders,
+    never touches a matcher group the template does not define — so
+    project-local hooks and ordering survive untouched."""
+    p = Path(wt) / ".claude" / "settings.json"
+    tmpl = KIT / "templates" / "settings.json.template"
+    if not p.is_file() or not tmpl.is_file():
+        return []
+    try:
+        target = json.loads(p.read_text())
+        want = json.loads(tmpl.read_text())
+    except ValueError:
+        return []
+
+    def hook_name(cmd):
+        return cmd.strip().split()[-1] if cmd.strip() else ""
+
+    added = []
+    t_hooks = target.setdefault("hooks", {})
+    for event, groups in (want.get("hooks") or {}).items():
+        t_groups = t_hooks.setdefault(event, [])
+        for group in groups:
+            matcher = group.get("matcher")
+            dest = next((g for g in t_groups if g.get("matcher") == matcher), None)
+            if dest is None:
+                # A whole event/matcher group the target lacks: take it as-is.
+                t_groups.append(json.loads(json.dumps(group)))
+                added += [f"{event}[{matcher or '*'}]:{hook_name(h.get('command',''))}"
+                          for h in group.get("hooks", [])]
+                continue
+            have = {hook_name(h.get("command", "")) for h in dest.setdefault("hooks", [])}
+            for h in group.get("hooks", []):
+                name = hook_name(h.get("command", ""))
+                if name and name not in have:
+                    dest["hooks"].append(json.loads(json.dumps(h)))
+                    have.add(name)
+                    added.append(f"{event}[{matcher or '*'}]:{name}")
+    if added:
+        p.write_text(json.dumps(target, indent=2) + "\n")
+    return added
+
+
 def create_pr(owner, repo, head, base, old, new, files):
     tok = TOKEN_FILE.read_text().strip()
     body = {
@@ -203,6 +260,9 @@ def main():
             if up.returncode != 0:
                 log(f"[FAIL] {name}: update.sh: {up.stderr.strip()[:200]}"); continue
             patch_attribution(wt)
+            wired = patch_hook_wiring(wt)
+            if wired:
+                log(f"[wire] {name}: added hook wiring {', '.join(wired)}")
             if not hooks_gate(wt):
                 log(f"[FAIL] {name}: hook gate failed — project-local engine additions need a "
                     f"manual merge with the kit engine; NO PR opened")
