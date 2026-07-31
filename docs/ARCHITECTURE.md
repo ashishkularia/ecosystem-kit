@@ -134,7 +134,9 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 | `scripts/health-check.sh` → `.claude/scripts/` | overwrite always (kit-owned, same class as the engine) |
 | `.claude/kit-version` | stamp |
 
-`installer/update.sh TARGET_DIR` — refreshes **engine + scripts + skills only**, never `.memory/` or `kit.json`, and shows what changed.
+`installer/update.sh TARGET_DIR` — refreshes **engine + scripts + skills only**, never `.memory/`, `kit.json`, or `settings.json`, and shows what changed.
+
+**Wiring changes need the propagation path, not the update path.** Because `update.sh` never rewrites project-owned `settings.json`, a kit change that wires an *existing* hook onto a *new* event reaches installed repos as dead code — the module updates and nothing calls it, and `health-check`'s roster comparison still passes because the hook is wired on its other events. `tools/kit-propagate` closes this with a strictly additive policy patch (append a missing `(event, matcher, hook)` triple; never remove, reorder, or touch a matcher group the template doesn't define), alongside the attribution patch it already applies. When reviewing a change to `settings.json.template`, "does it work on a fresh install" is the wrong question: the installed base is the population that matters.
 
 `scripts/health-check.sh` — kit.json valid + schema-conformant (python3), engine files present + py-compile, settings.json wiring == hook glob (name-token comparison), roster files exist, diary staleness warning >3 days, daemon status, and no `_client.py` wiring leaking into `~/.claude/settings.local.json`.
 

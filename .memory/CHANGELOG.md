@@ -1,5 +1,18 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-01 — `kit-propagate` gains a **hook-wiring policy patch**: kit hook
+  wirings missing from a target's `.claude/settings.json` are appended during
+  propagation. Without it, a kit change that wires an EXISTING hook onto a NEW
+  event ships to installed repos as dead code — `update.sh` deliberately never
+  rewrites project-owned `settings.json`, so the module updates but nothing
+  calls it. Caught on the same day's pre-commit diary gate, which would have
+  been silently inert in all five installed repos (and `health-check` would not
+  have flagged it: `docs_contract` was still wired on its other events, so the
+  roster check passed). Strictly additive — never removes, reorders, or touches
+  a matcher group the template doesn't define; verified against
+  homeassistant's real settings, where the project-local `guard_lint_md`
+  survives untouched and a second run is a no-op.
+
 - 2026-08-01 — **Diaries are per-MR and written as the work happens** (owner
   change). Scope: new `diary_scope` key, default `"branch"` — one entry per
   branch/MR at `.memory/diary/YYYY-MM-DD-<branch-slug>.md`, dated when the
