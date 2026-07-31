@@ -120,6 +120,14 @@ done
 rm -f "$CLAUDE_DIR/hooks/.daemon_start_attempt"
 echo "  engine:   $engine_count hook module(s) installed to .claude/hooks/"
 
+# ── 1b. Scripts (kit-owned: always overwritten) ─────────────────────
+# health-check.sh is self-contained (operates only on TARGET_DIR), so the
+# installed copy keeps working standalone — and update.sh refreshes it, so
+# targets don't run a stale check against current kit conventions forever.
+mkdir -p "$CLAUDE_DIR/scripts"
+cp "$KIT_ROOT/scripts/health-check.sh" "$CLAUDE_DIR/scripts/health-check.sh"
+echo "  scripts:  health-check.sh installed to .claude/scripts/"
+
 # ── 2. Commands / agents / skills (project-customizable: keep existing) ─
 copy_md() { # copy_md SRC_DIR DST_DIR LABEL
   local src="$1" dst="$2" label="$3" copied=0 kept=0 f base
@@ -290,7 +298,7 @@ Next steps:
   1. Restart the Claude Code session in $TARGET_DIR
      (the SessionStart hook loads STATE/VERIFY/ISSUES/diary + always_load docs every session).
   2. Run the health check:
-       bash $KIT_ROOT/scripts/health-check.sh $TARGET_DIR
+       bash $TARGET_DIR/.claude/scripts/health-check.sh $TARGET_DIR
   3. Review .claude/kit.json — it is project-owned now; tune gates/ceremony/domain_map.
   4. Commit the new files on a branch. Owner merges — Claude never writes to main/master.
 EOF

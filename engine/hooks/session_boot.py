@@ -42,8 +42,54 @@ def tail_lines(path, n):
     return lines[-n:] if lines else []
 
 
-def count_open_checkboxes(path):
-    return sum(1 for ln in read_lines(path) if re.match(r"\s*-\s*\[ \]", ln))
+# A closed entry in the drifted (non-checkbox) format, e.g. "Status: RESOLVED
+# 2026-07-08" or "Status: DONE". Case-SENSITIVE on purpose: these are shouted
+# status markers, whereas lowercase prose ("clearance not done") means the
+# entry is still open. "PARTIALLY RESOLVED" is likewise still open work.
+DRIFT_CLOSED_RE = re.compile(
+    r"(?<!PARTIALLY )\b(RESOLVED|DONE|CLOSED|FIXED|WONTFIX|OBSOLETE|DROPPED)\b")
+DRIFT_ENTRY_RE = re.compile(r"-\s*(?:\*\*)?\d{4}-\d{2}-\d{2}")
+
+
+def count_open_entries(path):
+    """Count open entries; returns (count, drifted).
+
+    The kit convention is `- [ ]` checkboxes, but repos drift to plain dated
+    bullets (`- YYYY-MM-DD — ...`) and a checkbox-only counter then reports a
+    misleading 0 at every session start (meritick, 2026-08-01 hygiene). When
+    no checkboxes exist, count unresolved dated bullets and flag the drift.
+
+    Drifted entries are counted per ENTRY, not per line: an entry runs from its
+    dated bullet to the next one, and a closure marker anywhere inside it
+    (often on a continuation line) closes it. The bullet pattern anchors at
+    column 0 so the quoted mid-line examples in the kit's .memory templates are
+    never counted."""
+    lines = read_lines(path)
+    boxes = sum(1 for ln in lines if re.match(r"\s*-\s*\[ \]", ln))
+    if boxes:
+        return boxes, False
+
+    open_count = 0
+    total = 0
+    entry = None  # text of the entry being accumulated, or None outside one
+    for ln in lines:
+        if DRIFT_ENTRY_RE.match(ln):
+            if entry is not None:
+                total += 1
+                open_count += 0 if DRIFT_CLOSED_RE.search(entry) else 1
+            entry = ln
+        elif entry is not None:
+            if ln.strip() and not ln.startswith((" ", "\t")):
+                # Back to column-0 prose: the entry block has ended.
+                total += 1
+                open_count += 0 if DRIFT_CLOSED_RE.search(entry) else 1
+                entry = None
+            else:
+                entry += ln
+    if entry is not None:
+        total += 1
+        open_count += 0 if DRIFT_CLOSED_RE.search(entry) else 1
+    return open_count, total > 0
 
 
 def stale_warning(state_lines):
@@ -115,9 +161,14 @@ def build_context():
         parts.append("")
 
     # Open work
-    verify_open = count_open_checkboxes(os.path.join(MEMORY_DIR, "VERIFY.md"))
-    issues_open = count_open_checkboxes(os.path.join(MEMORY_DIR, "ISSUES.md"))
-    parts.append(f"## Open work: VERIFY {verify_open} unchecked · ISSUES {issues_open} unchecked")
+    def open_work_label(path):
+        n, drifted = count_open_entries(path)
+        if drifted:
+            return f"{n} open ⚠ non-checkbox entries — kit format is \"- [ ]\""
+        return f"{n} unchecked"
+    verify_label = open_work_label(os.path.join(MEMORY_DIR, "VERIFY.md"))
+    issues_label = open_work_label(os.path.join(MEMORY_DIR, "ISSUES.md"))
+    parts.append(f"## Open work: VERIFY {verify_label} · ISSUES {issues_label}")
     parts.append("")
 
     # Newest diary tail

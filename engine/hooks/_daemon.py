@@ -40,6 +40,10 @@ except Exception:
 
 loaded_hooks = {}
 
+# Set by handle_request when it finds the on-disk hook files no longer match
+# what this process imported; the accept loop (1s timeout) polls it and exits.
+stale_shutdown = threading.Event()
+
 # handle_request swaps the PROCESS-GLOBAL sys.stdout/stderr/stdin around each
 # hook call, but clients are served on concurrent threads (the harness fires
 # all matcher hooks for one tool call in parallel). Serialize so a fast hook's
@@ -66,8 +70,26 @@ def discover_hook_modules():
     return names
 
 
+def hooks_signature():
+    """Fingerprint of every hook file on disk — including _-prefixed internals,
+    since a hook's behavior changes when _constants.py does. Compared per
+    request against the value captured at load time."""
+    sig = []
+    for path in sorted(glob.glob(os.path.join(HOOKS_DIR, "*.py"))):
+        try:
+            st = os.stat(path)
+            sig.append((os.path.basename(path), st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append((os.path.basename(path), 0, 0))
+    return tuple(sig)
+
+
+loaded_signature = None
+
+
 def load_hooks():
-    global loaded_hooks
+    global loaded_hooks, loaded_signature
+    loaded_signature = hooks_signature()
     for module_name in discover_hook_modules():
         try:
             module = importlib.import_module(module_name)
@@ -81,6 +103,25 @@ def load_hooks():
     log(f"Loaded {len(loaded_hooks)} hooks")
 
 
+def retire_endpoint():
+    """Give up the socket + PID file, but only while we still own them.
+
+    Ownership is the PID file's contents: once a successor has written its own
+    PID, these paths are ITS endpoint and unlinking them would strand a live
+    daemon with no socket. Idempotent — retiring then exiting is safe."""
+    try:
+        with open(PID_FILE) as f:
+            if int(f.read().strip()) != os.getpid():
+                return  # a successor owns the endpoint now
+    except (OSError, ValueError):
+        return  # already retired, or never ours
+    for p in (SOCKET_PATH, PID_FILE):
+        try:
+            os.unlink(p)
+        except OSError:
+            pass
+
+
 def handle_request(data):
     """Handle one hook invocation. Request: {"hook": name, "payload": {...}}.
     Response: {"exit_code": int, "stdout": str, "stderr": str}."""
@@ -91,6 +132,22 @@ def handle_request(data):
 
     hook_name = request.get("hook", "")
     payload = request.get("payload", {})
+
+    # A daemon holding hooks imported before update.sh replaced them on disk
+    # enforces yesterday's rules (a stale guard_protected_merge wrongly blocked
+    # a feature-branch rebase, 2026-07-31). importlib.reload can't fix this —
+    # it won't re-evaluate already-imported _-internals — so answer "stale" and
+    # exit: the client direct-execs the current on-disk code and auto-restarts
+    # a fresh daemon.
+    if loaded_signature is not None and hooks_signature() != loaded_signature:
+        log("Hook files changed on disk since load — retiring so clients restart me")
+        # Retire the socket and PID file BEFORE replying: cmd_start() refuses to
+        # start while a live PID file exists, so a successor could not boot until
+        # this process finished winding down (leaving hooks on the slow
+        # direct-exec path for a whole cooldown window).
+        retire_endpoint()
+        stale_shutdown.set()
+        return json.dumps({"exit_code": 2, "stdout": f"Stale daemon: hook files changed on disk (requested: {hook_name})", "stderr": ""})
 
     if hook_name not in loaded_hooks:
         return json.dumps({"exit_code": 2, "stdout": f"Unknown hook: {hook_name}", "stderr": ""})
@@ -181,7 +238,7 @@ def start_server():
     signal.signal(signal.SIGINT, shutdown)
 
     try:
-        while running:
+        while running and not stale_shutdown.is_set():
             try:
                 conn, _ = server.accept()
                 threading.Thread(target=handle_client, args=(conn,), daemon=True).start()
@@ -192,9 +249,9 @@ def start_server():
                     log(f"Accept error: {e}")
     finally:
         server.close()
-        for p in (SOCKET_PATH, PID_FILE):
-            if os.path.exists(p):
-                os.unlink(p)
+        # Ownership-checked: a retired daemon that already handed the endpoint
+        # to a successor must not delete the successor's socket/PID file.
+        retire_endpoint()
         log("Daemon stopped")
 
 

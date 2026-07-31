@@ -5,6 +5,7 @@
 #
 # Refreshes ONLY:
 #   * engine        <kit>/engine/hooks/*.py   -> <target>/.claude/hooks/   (tests/ never installed)
+#   * scripts       <kit>/scripts/health-check.sh -> <target>/.claude/scripts/
 #   * skills        <kit>/templates/skills/*.md -> <target>/.claude/skills/
 #   * kit-version   restamped
 #
@@ -77,6 +78,15 @@ for f in "$CLAUDE_DIR"/hooks/*.py; do
   fi
 done
 
+# ── Scripts refresh (.claude/scripts/) ──────────────────────────────
+# Without this, targets keep whichever health-check they were installed with
+# forever — DevContainer sat on a pre-$CLAUDE_PROJECT_DIR copy that flagged
+# the kit's own canonical wiring as an ERR (2026-08-01 hygiene finding).
+echo ""
+echo "Scripts (.claude/scripts/):"
+mkdir -p "$CLAUDE_DIR/scripts"
+refresh_file "$KIT_ROOT/scripts/health-check.sh" "$CLAUDE_DIR/scripts/health-check.sh" ".claude/scripts/health-check.sh"
+
 # ── Skills refresh (.claude/skills/) ────────────────────────────────
 echo ""
 echo "Skills (.claude/skills/):"
@@ -118,5 +128,5 @@ kit-version: $KIT_VERSION (kit commit $KIT_COMMIT)
 Untouched by design: .memory/, .claude/kit.json, commands/, agents/, settings*.json, CLAUDE.md.
 
 Next: restart the Claude Code session, then
-  bash $KIT_ROOT/scripts/health-check.sh $TARGET_DIR
+  bash $TARGET_DIR/.claude/scripts/health-check.sh $TARGET_DIR
 EOF

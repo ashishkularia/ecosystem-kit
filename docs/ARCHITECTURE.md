@@ -35,7 +35,7 @@ The ecosystem is loaded at session start **regardless of task** — the user sho
 
 1. project + profile name (from `kit.json`)
 2. first 40 lines of `.memory/STATE.md`, plus a stale warning if its "Last validated" date is >7 days old
-3. open `- [ ]` counts in `VERIFY.md` and `ISSUES.md`
+3. open-entry counts for `VERIFY.md` and `ISSUES.md` — `- [ ]` checkboxes are the kit convention, but repos drift to plain dated bullets (`- YYYY-MM-DD — …`) and a checkbox-only counter then reports a confident **0 open** while real work piles up (meritick: 39 issues reported as none). When a file has no checkboxes, `count_open_entries()` falls back to counting dated bullets per *entry* — an entry runs from its bullet to the next one, and a shouted closure marker anywhere inside it (`Status: RESOLVED`, `DONE`, …; case-sensitive, so lowercase prose like "not done" stays open, and `PARTIALLY RESOLVED` stays open) closes it — and the banner flags the format drift rather than silently normalizing it
 4. last 20 lines of the newest `.memory/diary/*.md`
 5. git branch, dirty-file count, unpushed-commit count
 6. the `always_load` list from `kit.json` with the instruction to **Read each file before substantive work**
@@ -55,6 +55,14 @@ settings.json ──► python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <
                         │            _-prefixed (never a hardcoded roster)
                         └─ fallback: direct exec of the hook module (cold clone still enforces)
 ```
+
+**Staleness changeover.** The daemon imports hook code once, so a daemon that predates an `update.sh` keeps enforcing the old rules (a stale `guard_protected_merge` wrongly blocked a feature-branch rebase, 2026-07-31). Every request compares `hooks_signature()` — (name, mtime_ns, size) over *all* `HOOKS_DIR/*.py`, `_`-prefixed internals included, since a hook's behavior changes when `_constants.py` does — against the signature captured at load:
+
+1. On mismatch the daemon calls `retire_endpoint()` (unlink socket + PID file) **before** replying `Stale daemon: …`, then stops accepting. Retiring first matters: `cmd_start()` refuses to boot while a live PID file exists, so a successor could not start until the old process finished winding down.
+2. `_client.py` treats the `Stale daemon:` prefix — like `Unknown hook:` — as a fall-back signal, never a hook block, and clears the auto-start cooldown so the very next call boots a fresh daemon instead of waiting out the rate limit.
+3. That call runs the hook by direct exec against the **current on-disk code**, so the changeover neither blocks nor enforces stale rules.
+
+`retire_endpoint()` is ownership-checked (the PID file must still name this process) so a retiring daemon can never unlink its successor's socket and strand a live daemon.
 
 - `_constants.py`: `HOOKS_DIR = dirname(realpath(__file__))`, `PROJECT_ROOT = dirname(dirname(HOOKS_DIR))`, `MEMORY_DIR = PROJECT_ROOT/.memory`, and `load_kit()` → `.claude/kit.json` with safe defaults for every key (missing/corrupt config degrades, never crashes).
 - Daemon PID/log/socket files live in `HOOKS_DIR`, gitignored by the installer's snippet.
@@ -120,11 +128,14 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 | `settings.json` | write only if missing; else print manual-merge diff instruction |
 | `settings.local.json` | merge `autoMemoryDirectory` via python3 (preserve other keys) |
 | `.gitignore` | append missing snippet lines (`.claude/hooks/.daemon.*`, `.claude/hooks/__pycache__/`, `.claude/settings.local.json`; `kit-version` **is** tracked). `.memory/cache/` is NOT in the snippet — it self-ignores via a tracked `cache/.gitignore` (`*` + `!.gitignore`) so the dir survives clones; the installer scrubs the legacy root line and seeds `.gitkeep` into empty `diary/`/`auto/` |
+| `scripts/health-check.sh` → `.claude/scripts/` | overwrite always (kit-owned, same class as the engine) |
 | `.claude/kit-version` | stamp |
 
-`installer/update.sh TARGET_DIR` — refreshes **engine + skills only**, never `.memory/` or `kit.json`, and shows what changed.
+`installer/update.sh TARGET_DIR` — refreshes **engine + scripts + skills only**, never `.memory/` or `kit.json`, and shows what changed.
 
 `scripts/health-check.sh` — kit.json valid + schema-conformant (python3), engine files present + py-compile, settings.json wiring == hook glob (name-token comparison), roster files exist, diary staleness warning >3 days, daemon status, and no `_client.py` wiring leaking into `~/.claude/settings.local.json`.
+
+It is **installed into each target** at `.claude/scripts/health-check.sh` and refreshed by `update.sh`, so a repo checks itself against current kit conventions from a cold clone with no kit checkout present (the script is self-contained — it only reads `TARGET_DIR`). Without that refresh path a target keeps whichever copy it was installed with forever: DevContainer sat on a pre-`$CLAUDE_PROJECT_DIR` copy that flagged the kit's own canonical wiring as an ERR, pinning its score at a permanent red 85%.
 
 ## 8. The self-improvement loop
 
