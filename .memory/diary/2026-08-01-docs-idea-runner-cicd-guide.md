@@ -48,6 +48,23 @@ content*, which is how the kit already separates its artifacts —
   each repo the *shape* to fill in (which jobs run where, and why) without the
   kit asserting any repo's topology.
 
+**Added after a second pass over mylantite's ISSUES:** the trap I had missed is
+the most generalizable one in the set — **tests that read secrets fail on CI
+because the secrets are not there.** mylantite's backend suite needed Stripe
+credentials; the CI fix appended placeholders in `backend.sh`, which fixes CI
+only. The proper home is a tracked default (`phpunit.xml` `<env>`), and the
+reason it wasn't done immediately is the interesting part: it has to be checked
+against the test runner's override semantics, or a developer holding REAL keys
+gets silently switched to a placeholder. That is exactly the shape of thing a
+guide should carry — not "add placeholders", but "here is why the obvious fix
+is the wrong home, and what to check before moving it."
+
+Also worth recording as the *why now*: meritick's move wasn't a design choice.
+The commit reads `ci: move to the box's self-hosted runner — GitHub-hosted
+stopped assigning`. Guidance that assumes self-hosting is a considered
+architectural decision will miss the common case, which is that someone ran out
+of hosted minutes on a Friday.
+
 **Open:** whether all three are warranted or just the skill. My instinct is the
 skill plus the context template earn their place immediately, and the reference
 doc only if the generic principles turn out to be more than a page. Ashish
