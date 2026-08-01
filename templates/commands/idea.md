@@ -18,12 +18,15 @@ Capture and develop the idea given in the argument (or ask for it).
    honestly.
 4. Discuss trade-offs until the idea has a crisp shape.
 5. **Ask where it belongs before writing it down** (owner rule 2026-08-01):
-   *could a second repo use this?* If yes — even one other repo, not all of
-   them — it is a kit idea, not a project idea, and the entry says so and names
-   which repos. Applicability is not universality: something serving two of
-   five repos still belongs in the kit, gated by relevance at use time. Filing
-   a reusable process as project-local is how three copies come to exist and
-   then drift apart.
+   *which existing repo could implement this right now, or already has its own
+   version?* If you can name one — even a single other repo, not all of them —
+   it is a kit idea, not a project idea, and the entry says so and names the
+   repo. If you cannot name one, it stays a project idea: a future need is not
+   a reason, and when that repo actually needs it the promotion happens then.
+   Applicability is not universality — something serving two of five repos
+   still belongs in the kit, gated by relevance at use time. Filing a process
+   another repo is *already* doing as project-local is how three copies come to
+   exist and then drift apart.
 6. Record in `.memory/IDEAS.md`: bold title, 2–4 lines covering the what, the
    approach, and any prerequisite. Datestamp if time-sensitive.
 7. Do NOT implement it — IDEAS.md entries are acted on only when explicitly

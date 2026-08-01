@@ -33,13 +33,15 @@ This repo runs the ecosystem on itself (`.memory/` at the root is real, not a fi
 
 Resist per-project forks of engine files. The order of preference: (1) a `kit.json` key that configures it, (2) a template the project customizes (commands/agents/skills are skip-if-exists), (3) only then an engine change — which every project inherits. Record the decision in `.memory/DECISIONS.md`.
 
-## Promotion: the bar is TWO repos, not all of them
+## Promotion: a second EXISTING repo, today — not a future one
 
-**If a process could be used by more than one repo, it belongs in the kit** (owner rule, 2026-08-01). Not "every repo" — *more than one*. A thing that serves two repos today will be copy-pasted into the third, and then the three copies drift; that is how this repo shipped three forked command splitters, one of which let a push through.
+**If another existing repo could implement this process right now — or already has its own version of it — it belongs in the kit** (owner rule, 2026-08-01). The bar is *more than one* repo, not every repo.
 
-So the promotion question is never "is this universal?" but **"could a second repo use this?"** — and it is asked *actively*, not noticed passively. Whenever a process, recipe, guard, or runbook is built or fixed in one repo, explore before closing the work: which other repos have the same shape, hit the same trap, or would hit it once they grow that feature?
+The test is **present-tense and evidence-based: name the repo.** Not "will something need this one day?" but *"which existing repo could adopt this today, or is already doing it separately?"* If you cannot name one, it is not a promotion — it is a guess.
 
-Two consequences worth stating plainly:
+Ask it *actively*, not passively: whenever a process, recipe, guard, script or runbook is built or fixed, check the other repos before closing the work. Do they have the same shape? The same trap? Their own copy already?
 
-- **Applicability is not universality.** Self-hosted-runner guidance serves two of five repos and no more; it still belongs in the kit. Gate it by relevance at use time (a skill that no-ops where it doesn't apply), never by excluding it from the kit.
-- **"Only one repo needs it today" is a prediction, not an observation** — and usually a wrong one. Prefer the kit unless the thing is genuinely bound to one repo's domain (its schema, its business rules, its infrastructure names).
+- **A future need is not a reason to promote.** If a second repo might want it later, leave it where it is; promote it when that repo actually needs it. Nothing is lost by waiting — it is the same work done with evidence instead of a prediction, and it is what keeps a shared kit from accreting artifacts nobody uses and everybody must read past.
+- **Existing duplication is the strongest signal, and means the kit is late.** Two repos already solving the same problem separately is not a reason to consider promotion; it is proof the promotion is overdue. Three forked copies of `split_shell_commands` lived in this engine, only one had learned to extract `$(…)`, and the gap let a push reach a protected branch.
+- **Applicability is not universality.** Self-hosted-runner guidance serves two of five repos and no more; it qualifies because *both of those two run runners today*. Gate a kit artifact by relevance at use time (a skill that no-ops where it doesn't apply), never by excluding it from the kit.
+- Genuinely project-bound things stay put: a repo's schema, its business rules, its infrastructure names.
