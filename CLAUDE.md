@@ -32,3 +32,14 @@ This repo runs the ecosystem on itself (`.memory/` at the root is real, not a fi
 ## When a project needs something the kit doesn't do
 
 Resist per-project forks of engine files. The order of preference: (1) a `kit.json` key that configures it, (2) a template the project customizes (commands/agents/skills are skip-if-exists), (3) only then an engine change — which every project inherits. Record the decision in `.memory/DECISIONS.md`.
+
+## Promotion: the bar is TWO repos, not all of them
+
+**If a process could be used by more than one repo, it belongs in the kit** (owner rule, 2026-08-01). Not "every repo" — *more than one*. A thing that serves two repos today will be copy-pasted into the third, and then the three copies drift; that is how this repo shipped three forked command splitters, one of which let a push through.
+
+So the promotion question is never "is this universal?" but **"could a second repo use this?"** — and it is asked *actively*, not noticed passively. Whenever a process, recipe, guard, or runbook is built or fixed in one repo, explore before closing the work: which other repos have the same shape, hit the same trap, or would hit it once they grow that feature?
+
+Two consequences worth stating plainly:
+
+- **Applicability is not universality.** Self-hosted-runner guidance serves two of five repos and no more; it still belongs in the kit. Gate it by relevance at use time (a skill that no-ops where it doesn't apply), never by excluding it from the kit.
+- **"Only one repo needs it today" is a prediction, not an observation** — and usually a wrong one. Prefer the kit unless the thing is genuinely bound to one repo's domain (its schema, its business rules, its infrastructure names).

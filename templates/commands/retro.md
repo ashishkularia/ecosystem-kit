@@ -16,9 +16,22 @@ next month.
    - Personal style / cross-project workflow preference → auto-memory
 3. Cross-check the documentation contract: CHANGELOG, DOCS-CHANGELOG, VERIFY,
    ISSUES all carry what this session owes them. File anything missing now.
-4. Propose **kit promotions**: anything learned here that is true for EVERY
-   project using the ecosystem kit (a hook gap, a better command body, a
-   template fix) — list each explicitly so the owner can carry it to the
-   ecosystem-kit repo. Do not edit the kit from a project session.
+4. Propose **kit promotions**. The bar is **more than one repo — not every
+   repo** (owner rule 2026-08-01). Ask it actively, as its own step, not as a
+   thing you notice in passing:
+
+   > For each process, recipe, guard, script or runbook this session built or
+   > fixed — **could a second repo use it?** Which one, and what would it need
+   > changed to be reusable there?
+
+   If the answer is yes for even one other repo, it is a promotion candidate:
+   list it explicitly so the owner can carry it to the ecosystem-kit repo.
+   Applicability is not universality — something serving two of five repos
+   still belongs in the kit, gated by relevance at use time rather than
+   excluded from it. "Only we need this" is a prediction, and usually wrong:
+   the thing gets copy-pasted into the next repo and the copies drift.
+
+   Genuinely project-bound things stay put: this repo's schema, business
+   rules, infrastructure names. Do not edit the kit from a project session.
 5. Append a closing block to this change's diary entry (/diary) if the session's
    work is not already recorded there.

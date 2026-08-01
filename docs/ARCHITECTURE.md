@@ -168,13 +168,19 @@ work session
    ▼
 /retro ── distills into ──► .memory/  (GOTCHAS, CONVENTIONS, DECISIONS, references/, auto/)
    │
-   │  "this learning is not project-specific"
+   │  "could a SECOND repo use this?"   ← asked actively, not noticed
    ▼
 kit promotion ── PR against ecosystem-kit (template/engine/profile change)
    │                └─ owner merges (owner-only rule applies to the kit too)
    ▼
 /kit-update in each project ── update.sh ──► every repo inherits the improvement
 ```
+
+**The promotion bar is TWO repos, not all of them** (owner rule, 2026-08-01). The test is *could a second repo use this?* — not *is this universal?* Applicability is not universality: self-hosted-runner guidance serves two of five repos and still belongs in the kit, gated by relevance at use time rather than excluded from it. The earlier wording ("true for EVERY project") would have rejected it.
+
+The reason the bar is low: a process that serves two repos gets copy-pasted into the third, and then the copies drift. That is not hypothetical here — three forked copies of `split_shell_commands` existed in this engine, only one had learned to extract `$(…)`, and the gap let a push reach a protected branch (2026-08-01). Duplication does not merely risk inconsistency; it changes the economics of fixing anything, because patching one copy *feels* like fixing the bug.
+
+"Only one repo needs it today" is a prediction, not an observation. Prefer the kit unless the thing is bound to one repo's domain — its schema, its business rules, its infrastructure names.
 
 Roster files each have a drain path so knowledge stays live instead of accreting: `/state` revalidates STATE.md against reality, `/verify` drains VERIFY checkboxes, `/summary` digests ISSUES + IDEAS + VERIFY + CHANGELOG into a top-3 next, `/diary` records the change as it happens (appending to the branch's entry at each decision, not once at the end), and `session_boot` re-surfaces staleness every morning.
 

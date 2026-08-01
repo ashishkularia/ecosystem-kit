@@ -1,5 +1,20 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-01 — **Promotion bar lowered to TWO repos, and the question is now
+  asked actively** (owner rule). `/retro` step 4 said kit promotions were for
+  things "true for EVERY project" — a bar high enough to reject the same day's
+  self-hosted-runner guidance, which serves two of five repos. It now asks
+  *could a second repo use this?* as an explicit step, and `/idea` step 5 asks
+  the same before an idea is filed, so a reusable process is never recorded as
+  project-local. The rule is stated in both `CLAUDE.md`s (kit + project
+  template, so every repo inherits it) and in `docs/ARCHITECTURE.md` §8, whose
+  loop diagram now reads "could a SECOND repo use this?" instead of "this
+  learning is not project-specific". Rationale carried with it: applicability
+  is not universality (gate by relevance at use time, never by exclusion from
+  the kit), and a process serving two repos gets copy-pasted into the third and
+  drifts — as three forked copies of `split_shell_commands` did, one gap of
+  which let a push reach a protected branch.
+
 - 2026-08-01 — **Heredoc bodies are stripped before command splitting.** Adding
   newline to the separator set (the morning's bypass fix) made every line of a
   heredoc body parse as its own command, so `git commit -F - <<'EOF' … EOF`
