@@ -168,7 +168,7 @@ work session
    ▼
 /retro ── distills into ──► .memory/  (GOTCHAS, CONVENTIONS, DECISIONS, references/, auto/)
    │
-   │  "could a SECOND repo use this?"   ← asked actively, not noticed
+   │  "which EXISTING repo could use this today?"  ← name it, or it stays put
    ▼
 kit promotion ── PR against ecosystem-kit (template/engine/profile change)
    │                └─ owner merges (owner-only rule applies to the kit too)
@@ -176,11 +176,13 @@ kit promotion ── PR against ecosystem-kit (template/engine/profile change)
 /kit-update in each project ── update.sh ──► every repo inherits the improvement
 ```
 
-**The promotion bar is TWO repos, not all of them** (owner rule, 2026-08-01). The test is *could a second repo use this?* — not *is this universal?* Applicability is not universality: self-hosted-runner guidance serves two of five repos and still belongs in the kit, gated by relevance at use time rather than excluded from it. The earlier wording ("true for EVERY project") would have rejected it.
+**The promotion bar is a second EXISTING repo, today** (owner rule, 2026-08-01). The test is present-tense and evidence-based — *which existing repo could implement this right now, or already has its own version?* — not *is this universal?* and not *will something want this later?* If you cannot name the repo, it is a guess rather than a promotion. The earlier wording ("true for EVERY project") set the bar too high and would have rejected self-hosted-runner guidance; "could a second repo use this" set it too vague and invited speculation.
 
-The reason the bar is low: a process that serves two repos gets copy-pasted into the third, and then the copies drift. That is not hypothetical here — three forked copies of `split_shell_commands` existed in this engine, only one had learned to extract `$(…)`, and the gap let a push reach a protected branch (2026-08-01). Duplication does not merely risk inconsistency; it changes the economics of fixing anything, because patching one copy *feels* like fixing the bug.
+**A future need is not a reason to promote.** If a second repo might want it later, leave it where it is and promote it when that repo actually needs it — the same work, done with evidence instead of a prediction. That delay is what keeps a shared kit from accreting artifacts nobody uses and everybody has to read past.
 
-"Only one repo needs it today" is a prediction, not an observation. Prefer the kit unless the thing is bound to one repo's domain — its schema, its business rules, its infrastructure names.
+**Existing duplication means the kit is late, not early.** Two repos already solving the same problem separately is proof the promotion is overdue: three forked copies of `split_shell_commands` lived in this engine, only one had learned to extract `$(…)`, and the gap let a push reach a protected branch (2026-08-01). Duplication does not merely risk inconsistency; it changes the economics of fixing anything, because patching one copy *feels* like fixing the bug.
+
+Applicability is not universality: self-hosted-runner guidance serves two of five repos and qualifies because *both of those two run runners today*. Gate a kit artifact by relevance at use time, never by excluding it from the kit. Domain-bound things — a repo's schema, business rules, infrastructure names — stay put.
 
 Roster files each have a drain path so knowledge stays live instead of accreting: `/state` revalidates STATE.md against reality, `/verify` drains VERIFY checkboxes, `/summary` digests ISSUES + IDEAS + VERIFY + CHANGELOG into a top-3 next, `/diary` records the change as it happens (appending to the branch's entry at each decision, not once at the end), and `session_boot` re-surfaces staleness every morning.
 

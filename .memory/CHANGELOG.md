@@ -1,19 +1,24 @@
 # CHANGELOG — ecosystem-kit
 
-- 2026-08-01 — **Promotion bar lowered to TWO repos, and the question is now
-  asked actively** (owner rule). `/retro` step 4 said kit promotions were for
-  things "true for EVERY project" — a bar high enough to reject the same day's
-  self-hosted-runner guidance, which serves two of five repos. It now asks
-  *could a second repo use this?* as an explicit step, and `/idea` step 5 asks
-  the same before an idea is filed, so a reusable process is never recorded as
-  project-local. The rule is stated in both `CLAUDE.md`s (kit + project
-  template, so every repo inherits it) and in `docs/ARCHITECTURE.md` §8, whose
-  loop diagram now reads "could a SECOND repo use this?" instead of "this
-  learning is not project-specific". Rationale carried with it: applicability
-  is not universality (gate by relevance at use time, never by exclusion from
-  the kit), and a process serving two repos gets copy-pasted into the third and
-  drifts — as three forked copies of `split_shell_commands` did, one gap of
-  which let a push reach a protected branch.
+- 2026-08-01 — **Promotion bar is now a second EXISTING repo, today — asked
+  actively, and evidence-based** (owner rule). `/retro` step 4 said kit
+  promotions were for things "true for EVERY project", a bar high enough to
+  reject the same day's self-hosted-runner guidance (two of five repos). The
+  replacement is deliberately *present-tense*: **name the existing repo that
+  could implement this right now, or already has its own version** — if you
+  cannot name one, it stays put. A future need is not a reason to promote;
+  when that repo actually needs it, the promotion happens then, with evidence
+  instead of a prediction. This is what keeps a low bar from becoming kit
+  bloat. Existing duplication is the strongest signal and means the promotion
+  is *overdue* — three forked copies of `split_shell_commands` lived in this
+  engine, only one had learned to extract `$(…)`, and the gap let a push reach
+  a protected branch. `/retro` step 4 and `/idea` step 5 now ask the question
+  explicitly (`/idea` before filing, so a process another repo already runs is
+  never recorded as project-local); both `CLAUDE.md`s carry the rule so every
+  repo inherits it; and the `docs/ARCHITECTURE.md` §8 loop diagram reads
+  "which EXISTING repo could use this today? — name it, or it stays put".
+  Applicability is not universality: gate by relevance at use time, never by
+  exclusion from the kit.
 
 - 2026-08-01 — **Heredoc bodies are stripped before command splitting.** Adding
   newline to the separator set (the morning's bypass fix) made every line of a
