@@ -65,6 +65,47 @@ stopped assigning`. Guidance that assumes self-hosting is a considered
 architectural decision will miss the common case, which is that someone ran out
 of hosted minutes on a Friday.
 
+## Session — the digest, and why it changed my mind about scope
+
+Dear diary,
+
+The thorough cross-repo sweep came back and it was worth waiting for: it found
+substantially more than my first pass, and two items reframe the work.
+
+**First, there is no runner-provisioning runbook anywhere.** Grepping
+`--labels|--unattended|registration token|config.sh` across both repos and the
+harness returns nothing. Every scrap of registration knowledge is post-hoc — a
+`config.out` file, a `.runner` blob, a stale shell script. So this isn't tidying
+existing docs into a skill; the primary artifact doesn't exist yet. That makes
+the case stronger, not weaker.
+
+**Second, and this is the one I keep thinking about: the runner bakes the
+interactive shell's PATH at `config.sh` time.** I verified it — `meritick-1/.path`
+opens with nvm's node v24.15.0 and then lists *sixteen Claude Code plugin cache
+bin directories*. So the runner's Node is whatever nvm happened to be on the day
+someone registered it, a later `nvm use` never reaches it, and unrelated local
+tooling leaks into CI's PATH.
+
+That is the *same bug* as this morning's homeassistant failure, where
+`guard_lint_md` ran under `/usr/bin/node` v18 while the shell had v24 — just
+pointing the other way. Twice in one day, the same root cause: **the environment
+a background process inherits is not the one you typed in.** If the eventual
+guidance carries one sentence, it should be that one.
+
+**Decided:** capture the digest as `.memory/references/runner-ci-field-notes.md`
+rather than inflating the IDEAS entry. Reasons: an idea should stay readable, the
+material is research and belongs in `references/`, and pointing the entry at
+mylantite's docs alone would rot — those docs are a live project's and will move.
+Marked explicitly as research not doctrine, and noted that the kit's `.memory/`
+never ships to targets, so nothing project-specific leaks by holding it here.
+Claims I verified on the box are marked ✓; the rest are quoted with their source
+repo, so a future builder knows what is checked and what is hearsay.
+
+**A judgement I want to flag as mine, not evidence:** I did not fold every
+finding into the proposal. Things like mutation-testing ratchets and CI image
+pruning are real but belong to whoever builds the thing, not to the decision
+about whether to build it. The entry stays a proposal; the notes carry the depth.
+
 **Open:** whether all three are warranted or just the skill. My instinct is the
 skill plus the context template earn their place immediately, and the reference
 doc only if the generic principles turn out to be more than a page. Ashish
