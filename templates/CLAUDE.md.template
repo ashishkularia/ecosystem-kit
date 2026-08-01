@@ -51,6 +51,15 @@ commands, branch types, domain map).
   [.memory/CONVENTIONS.md](.memory/CONVENTIONS.md) in the same session — and
   encoded as a red test per
   [.memory/references/engineering-principles.md](.memory/references/engineering-principles.md).
+- **A process usable by more than one repo belongs in the ecosystem kit, not
+  here** (owner rule 2026-08-01). The bar is *more than one* repo, not every
+  repo. Before closing work that built or fixed a process, recipe, guard,
+  script or runbook, ask it out loud: **could a second repo use this?** If yes,
+  say so and propose the promotion (`/retro` step 4) — never edit the kit from
+  a project session. Applicability is not universality: something that suits
+  two repos still belongs in the kit, gated by relevance where it is used.
+  Genuinely project-bound things — this repo's schema, business rules,
+  infrastructure names — stay here.
 
 ## Session helpers
 
