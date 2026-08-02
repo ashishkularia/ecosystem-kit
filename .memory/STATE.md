@@ -1,6 +1,6 @@
 # STATE — ecosystem-kit
 
-Last validated: 2026-08-01
+Last validated: 2026-08-03
 
 ## What this repo is
 
@@ -37,14 +37,27 @@ regardless of task.
   registered repos, every `.claude/kit-version` stamped from a real kit commit
   (7e0d2d8 or 59916b5), all on the cwd-independent `$CLAUDE_PROJECT_DIR` hook
   wiring; engine hooks confirmed producing live-session artifacts in
-  mylantite/meritick caches. Engine unittest suite 94/94 green (re-run
-  2026-08-01). The former rollout blocker is cleared —
+  mylantite/meritick caches. The former rollout blocker is cleared —
   `~/.claude/settings.local.json` now carries only the machine-level branch
-  guard, zero legacy `_client.py` wirings.
-- Machine layer live: crons for weekly-hygiene (today's per-repo logs present
-  in every target's `.memory/cache/`), pr-comment-poller, pr-rebase,
+  guard, zero legacy `_client.py` wirings. *(Cross-repo claims above are
+  frozen at the 2026-08-01 verification — this and subsequent weekly-hygiene
+  runs check only what's readable from inside this repo's sandbox; see
+  ISSUES for the scope note.)*
+- Engine unittest suite 164/164 green (re-run 2026-08-03, up from 94 on
+  2026-08-01 — the shell-splitter bypass fix, branch-scoped diary gate, and
+  PR-thread tooling each added coverage; see CHANGELOG for the run-by-run
+  detail). 12 hook modules / 16 event wirings in this repo's own
+  `.claude/settings.json`, both counts still consistent with each other.
+- Machine layer live (as of 2026-08-01; not re-checked this run — see
+  ISSUES): crons for weekly-hygiene, pr-comment-poller, pr-rebase,
   kit-propagate (daily update PRs into targets; owner merges), and
   prune-stale-branches (06:52).
+- Since 2026-08-01: shell-syntax bypass in `guard_protected_merge` closed (18
+  forms), hook-wiring now propagates additively via `kit-propagate`, diaries
+  scoped per-branch/MR and enforced at commit time, the cross-repo promotion
+  bar rewritten to be present-tense/evidence-based, and `tools/pr-thread`
+  added for in-thread PR replies + marker-gated resolve. Full detail in
+  CHANGELOG.
 
 ## Invariants
 
