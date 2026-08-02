@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""pr-thread — list and resolve PR review THREADS (the GraphQL-only bits).
+
+Replying to a review comment is REST (and an MCP tool); **resolving a thread
+is not** — `resolveReviewThread` exists only in GitHub's GraphQL API, and no
+MCP tool exposes it. Rather than teach every headless session to hold a token
+and hand-write GraphQL, the machine layer owns it, exactly as safe-push owns
+push policy.
+
+Usage:
+  pr-thread threads <owner> <repo> <pr> [--all]
+      Unresolved review threads as JSON (--all includes resolved ones).
+      Each thread carries its GraphQL node id, the file/line it hangs on, and
+      its comments with their REST databaseId — the id you reply to.
+  pr-thread resolve <thread-node-id> [--force]
+      Resolve a thread. REFUSES unless the thread's last comment carries the
+      automation marker, i.e. unless a reply was actually posted first.
+  pr-thread unresolve <thread-node-id>
+      Undo — for when a resolve turns out to be wrong.
+
+CREDENTIAL: read exclusively from ~/.secrets/github-pat (chmod 600), never
+printed, never taken from argv or the environment.
+
+WHY THE RESOLVE GUARD: "reply, then resolve" is the owner's rule, and a rule
+enforced by a prompt is a rule that holds until the session is distracted.
+Replies post under the owner's PAT (same author as the owner), so authorship
+cannot distinguish them — the GunAsh-<nonce> marker is what identifies an
+automated reply, and its presence in the newest comment is the check.
+"""
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
+API = "https://api.github.com/graphql"
+MARKER_RE = re.compile(r"GunAsh-[A-Za-z0-9]+")
+
+THREADS_Q = """
+query($o:String!,$r:String!,$n:Int!,$after:String){
+  repository(owner:$o,name:$r){
+    pullRequest(number:$n){
+      reviewThreads(first:50,after:$after){
+        pageInfo{hasNextPage endCursor}
+        nodes{
+          id isResolved isOutdated path line originalLine
+          comments(first:100){nodes{databaseId author{login} body createdAt}}
+        }
+      }
+    }
+  }
+}
+"""
+
+RESOLVE_M = """
+mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}
+"""
+
+UNRESOLVE_M = """
+mutation($id:ID!){unresolveReviewThread(input:{threadId:$id}){thread{id isResolved}}}
+"""
+
+
+def die(msg, code=1):
+    print(f"pr-thread: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def gql(query, variables):
+    if not TOKEN_FILE.is_file():
+        die(f"no token at {TOKEN_FILE} — create it (chmod 600)")
+    tok = TOKEN_FILE.read_text().strip()
+    req = urllib.request.Request(
+        API,
+        data=json.dumps({"query": query, "variables": variables}).encode(),
+        headers={"Authorization": f"Bearer {tok}",
+                 "Content-Type": "application/json",
+                 "User-Agent": "pr-thread"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            payload = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        die(f"HTTP {e.code} from GitHub GraphQL")
+    except Exception as e:
+        die(f"GraphQL request failed: {e}")
+    if payload.get("errors"):
+        die("GraphQL error: " + "; ".join(
+            e.get("message", "?") for e in payload["errors"]))
+    return payload["data"]
+
+
+def cmd_threads(argv):
+    if len(argv) < 3:
+        die("usage: pr-thread threads <owner> <repo> <pr> [--all]")
+    owner, repo, num = argv[0], argv[1], int(argv[2])
+    show_all = "--all" in argv[3:]
+    out, after = [], None
+    while True:
+        data = gql(THREADS_Q, {"o": owner, "r": repo, "n": num, "after": after})
+        block = data["repository"]["pullRequest"]["reviewThreads"]
+        for t in block["nodes"]:
+            if t["isResolved"] and not show_all:
+                continue
+            comments = [
+                {"id": c["databaseId"],
+                 "author": (c.get("author") or {}).get("login"),
+                 "created_at": c["createdAt"],
+                 "is_automated_reply": bool(MARKER_RE.search(c.get("body") or "")),
+                 "body": c.get("body") or ""}
+                for c in t["comments"]["nodes"]
+            ]
+            out.append({
+                "thread_id": t["id"],
+                "is_resolved": t["isResolved"],
+                "is_outdated": t["isOutdated"],
+                "path": t["path"],
+                # `line` goes null once a thread is outdated; originalLine is
+                # where it was written, which is what a human recognises.
+                "line": t["line"] if t["line"] is not None else t["originalLine"],
+                # Reply to the FIRST comment's id — GitHub attaches the reply to
+                # that comment's thread regardless of which id in the thread you
+                # use, but the root is the stable, obvious choice.
+                "reply_to_comment_id": comments[0]["id"] if comments else None,
+                "comments": comments,
+            })
+        if not block["pageInfo"]["hasNextPage"]:
+            break
+        after = block["pageInfo"]["endCursor"]
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def _thread_state(thread_id):
+    """(exists, last_comment_is_automated) — read back before mutating."""
+    q = """query($id:ID!){node(id:$id){... on PullRequestReviewThread{
+             isResolved comments(last:1){nodes{body}}}}}"""
+    node = gql(q, {"id": thread_id}).get("node")
+    if not node:
+        return None, False
+    nodes = node["comments"]["nodes"]
+    body = nodes[-1]["body"] if nodes else ""
+    return node, bool(MARKER_RE.search(body or ""))
+
+
+def cmd_resolve(argv):
+    if not argv:
+        die("usage: pr-thread resolve <thread-node-id> [--force]")
+    thread_id = argv[0]
+    force = "--force" in argv[1:]
+    node, replied = _thread_state(thread_id)
+    if node is None:
+        die(f"no review thread with id {thread_id}")
+    if node["isResolved"]:
+        print(f"already resolved: {thread_id}")
+        return 0
+    if not replied and not force:
+        die("REFUSED — the thread's newest comment carries no automation "
+            "marker, so no reply has been posted. Reply first saying what was "
+            "done, then resolve. (--force overrides; the owner's rule is that "
+            "a thread is never resolved silently.)")
+    data = gql(RESOLVE_M, {"id": thread_id})
+    t = data["resolveReviewThread"]["thread"]
+    print(f"resolved: {t['id']} (isResolved={t['isResolved']})")
+    return 0
+
+
+def cmd_unresolve(argv):
+    if not argv:
+        die("usage: pr-thread unresolve <thread-node-id>")
+    data = gql(UNRESOLVE_M, {"id": argv[0]})
+    t = data["unresolveReviewThread"]["thread"]
+    print(f"unresolved: {t['id']} (isResolved={t['isResolved']})")
+    return 0
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__.strip())
+        return 1
+    cmd, argv = sys.argv[1], sys.argv[2:]
+    if cmd == "threads":
+        return cmd_threads(argv)
+    if cmd == "resolve":
+        return cmd_resolve(argv)
+    if cmd == "unresolve":
+        return cmd_unresolve(argv)
+    die(f"unknown command '{cmd}' (threads | resolve | unresolve)")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

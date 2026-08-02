@@ -35,7 +35,7 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches unwedge-hooks.py; do
+for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches unwedge-hooks.py; do
   if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
   else warn "tool not in this kit checkout, skipped: $t"; fi
 done

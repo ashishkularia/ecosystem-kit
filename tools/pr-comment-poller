@@ -57,6 +57,10 @@ LOG = Path.home() / ".claude" / "pr-poller.log"
 ALLOWED_TOOLS = [
     "--allowedTools",
     "Bash(git:*)", "Bash(/home/ubuntu/.claude/bin/safe-push:*)",
+    # pr-thread owns the GraphQL-only half of review threads (list + resolve).
+    # REST cannot resolve a thread and no MCP tool exposes it, so without this
+    # the session can reply but never close anything out.
+    "Bash(/home/ubuntu/.claude/bin/pr-thread:*)",
     "Bash(python3:*)", "Bash(bash:*)", "Bash(make:*)", "Bash(jq:*)",
     "Edit", "Write", "Read", "Grep", "Glob",
     "mcp__github__pull_request_read", "mcp__github__add_reply_to_pull_request_comment",
@@ -200,14 +204,34 @@ def main():
         marker = f"GunAsh-{nonce}"
         log(f"{owner}/{repo}#{num}: {n} new owner comment(s) — launching claude in {path} [{marker}]")
         prompt = (
-            f"The owner left new review comments on PR #{num} of {owner}/{repo}. "
-            f"Run /pr-babysit for that PR: read every unresolved review thread and PR "
-            f"comment, address each one — doc/.memory changes may be made directly; for "
-            f"code changes work in a git worktree of the PR branch and never switch "
-            f"branches in this live checkout — push via /home/ubuntu/.claude/bin/safe-push, "
-            f"and reply to each addressed thread. End every reply you post with "
-            f"'{marker}' on its own last line — it identifies automated replies and "
-            f"is the poller's loop protection. No other signature or attribution. "
+            f"The owner left new comments on PR #{num} of {owner}/{repo}. "
+            f"Run /pr-babysit for that PR: address each one — doc/.memory changes "
+            f"may be made directly; for code changes work in a git worktree of the "
+            f"PR branch and never switch branches in this live checkout — push via "
+            f"/home/ubuntu/.claude/bin/safe-push.\n\n"
+            f"HOW TO RESPOND (owner rule — a reply belongs where the comment was "
+            f"made):\n"
+            f"1. INLINE review comments (left on a diff line) live in threads. "
+            f"List them with `/home/ubuntu/.claude/bin/pr-thread threads {owner} "
+            f"{repo} {num}` — it returns each unresolved thread's `thread_id` and "
+            f"`reply_to_comment_id`. Reply IN THAT THREAD with "
+            f"add_reply_to_pull_request_comment using `reply_to_comment_id`. Do NOT "
+            f"create a new review comment on the same line (that opens a SECOND "
+            f"thread), and do NOT answer an inline comment with a general PR "
+            f"comment.\n"
+            f"2. Once a thread is genuinely addressed — the fix is pushed, or the "
+            f"reply settles it — resolve it: `/home/ubuntu/.claude/bin/pr-thread "
+            f"resolve <thread_id>`. It REFUSES if you have not replied first, which "
+            f"is deliberate: reply, then resolve. Leave anything unresolved that you "
+            f"could not address, and say why in the reply.\n"
+            f"3. GENERAL comments on the PR conversation tab have no thread — GitHub "
+            f"does not support replying to them. Answer those with ONE general PR "
+            f"comment (add_issue_comment) that quotes the line(s) you are responding "
+            f"to, so it reads as a reply.\n\n"
+            f"End every reply and comment you post with '{marker}' on its own last "
+            f"line — it identifies automated replies, is the poller's loop "
+            f"protection, and is what lets pr-thread confirm a reply exists before "
+            f"resolving. No other signature or attribution. "
             f"Never merge anything; the owner merges."
         )
         try:

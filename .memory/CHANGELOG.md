@@ -1,5 +1,28 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-03 — **PR replies go in-thread, and addressed threads get resolved**
+  (owner rule). The poller's prompt said only "reply to each addressed thread"
+  and `/pr-babysit` said "reply with reasoning" — neither said *how*, and
+  `add_issue_comment` is granted alongside `add_reply_to_pull_request_comment`,
+  so answering an inline comment with a general PR-wall comment was the path of
+  least resistance. Both now spell out the rule: **inline** comments are
+  answered in their thread via `add_reply_to_pull_request_comment` (never a new
+  review comment on the same line — that opens a second thread beside the
+  owner's); **conversation-tab** comments have no thread on GitHub at all, so
+  they get one general comment that quotes what it answers. New machine tool
+  `tools/pr-thread` supplies the half that was genuinely missing: resolving a
+  review thread is **GraphQL-only** — REST cannot do it and no MCP tool exposes
+  `resolveReviewThread` — so "reply and resolve" could not have been fixed by
+  prompt wording alone. It lists unresolved threads (node id + the comment id
+  to reply to) and resolves them, owning the PAT the way `safe-push` owns push
+  policy rather than putting a credential in a prompt. `resolve` **refuses
+  unless a reply was posted first**, detected via the `GunAsh-` marker the
+  poller already mints (replies post under the owner's PAT, so authorship
+  cannot distinguish them) — making "reply, then resolve" mechanical instead of
+  a prompt instruction that holds until a session is distracted. Deployed by
+  `bootstrap-machine.sh`. Verified against a live PR with 29 unresolved
+  threads: listing correct, resolve refused, nothing mutated.
+
 - 2026-08-01 — **Promotion bar is now a second EXISTING repo, today — asked
   actively, and evidence-based** (owner rule). `/retro` step 4 said kit
   promotions were for things "true for EVERY project", a bar high enough to
