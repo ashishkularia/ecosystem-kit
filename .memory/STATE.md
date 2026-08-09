@@ -1,6 +1,6 @@
 # STATE — ecosystem-kit
 
-Last validated: 2026-08-03
+Last validated: 2026-08-10
 
 ## What this repo is
 
@@ -43,11 +43,10 @@ regardless of task.
   frozen at the 2026-08-01 verification — this and subsequent weekly-hygiene
   runs check only what's readable from inside this repo's sandbox; see
   ISSUES for the scope note.)*
-- Engine unittest suite 164/164 green (re-run 2026-08-03, up from 94 on
-  2026-08-01 — the shell-splitter bypass fix, branch-scoped diary gate, and
-  PR-thread tooling each added coverage; see CHANGELOG for the run-by-run
-  detail). 12 hook modules / 16 event wirings in this repo's own
-  `.claude/settings.json`, both counts still consistent with each other.
+- Engine unittest suite 164/164 green (re-run 2026-08-10, unchanged from
+  2026-08-03 — no engine commits landed this week). 12 hook modules / 16
+  event wirings in this repo's own `.claude/settings.json`, both counts still
+  consistent with each other and unchanged since 2026-08-03.
 - Machine layer live (as of 2026-08-01; not re-checked this run — see
   ISSUES): crons for weekly-hygiene, pr-comment-poller, pr-rebase,
   kit-propagate (daily update PRs into targets; owner merges), and
@@ -57,7 +56,10 @@ regardless of task.
   scoped per-branch/MR and enforced at commit time, the cross-repo promotion
   bar rewritten to be present-tense/evidence-based, and `tools/pr-thread`
   added for in-thread PR replies + marker-gated resolve. Full detail in
-  CHANGELOG.
+  CHANGELOG. **Quiet week since 2026-08-03**: the only commit in that window
+  is the 2026-08-03 hygiene run's own `.memory` commit (`ae12eee`), which is
+  still unpushed (1 commit ahead of `origin/main`) — expected per
+  weekly-hygiene's commit-but-never-push design, not a regression.
 
 ## Invariants
 
