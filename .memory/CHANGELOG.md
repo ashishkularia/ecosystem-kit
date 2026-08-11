@@ -178,6 +178,27 @@
   branches, or main/master; a repo whose default can't be resolved is skipped
   whole. `check` mode = read-only dry-run. bootstrap-machine.sh deploys it +
   installs the cron. Dry-run across the 6 repos: 28 stale branches, 0 uncertain.
+- 2026-07-30 — boot automation (owner ask: on machine reboot, start WSL → apt
+  update/upgrade → start a Remote Control Claude session per repo, resume-or-
+  fresh). New `tools/`: `wsl-apt-upgrade.sh` (root, safe unattended `apt-get
+  upgrade` — noninteractive, keeps configs, waits on the apt lock, throttled
+  once/day; WSL kernel is MS-supplied so no kernel/reboot churn), `start-remote-
+  sessions.sh` (owner user: one detached tmux `claude --continue --remote-
+  control … || fresh` per registered repo — idempotent, `--check`/`--list`
+  modes, optional exclude file + `REMOTE_SESSIONS_MAX` cap), `wsl-boot-
+  orchestrator.sh` (root: apt time-boxed then `runuser -l` → the launcher),
+  `ecosystem-boot.service` (systemd oneshot, `RemainAfterExit=yes` +
+  `KillMode=process` so the spawned tmux sessions survive the unit exiting),
+  and `install-boot-automation.sh` (sudo installer for the root+systemd pieces).
+  bootstrap-machine.sh now deploys the user launcher and has a manual step for
+  the sudo/Windows install. Docs: `docs/BOOT-AUTOMATION.md`. VERIFIED on claude
+  2.1.220: Remote Control needs the FULL-SCOPE login (rejects the reduced-scope
+  CLAUDE_CODE_OAUTH_TOKEN — the launcher unsets it); interactive `--continue`
+  EXITS 1 ("No conversation found") on a dir with no prior interactive session,
+  hence the `|| fresh` fallback; end-to-end launch confirmed live + drivable
+  from claude.ai/code. NOT automatable (owner-only): the sudo install and the
+  Windows Task Scheduler at-logon trigger + keepalive (WSL does not boot on
+  Windows reboot — it starts lazily on first access).
 - 2026-07-29 — Headless launchers pass explicit --allowedTools (owner A/B = TRUST,
   not skip-permissions). Diagnosis: headless `claude -p` runs auto-mode
   unattended and blocks NETWORK git (fetch/push) + arbitrary code even in
