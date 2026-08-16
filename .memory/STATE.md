@@ -1,6 +1,6 @@
 # STATE — ecosystem-kit
 
-Last validated: 2026-08-10
+Last validated: 2026-08-17
 
 ## What this repo is
 
@@ -43,10 +43,10 @@ regardless of task.
   frozen at the 2026-08-01 verification — this and subsequent weekly-hygiene
   runs check only what's readable from inside this repo's sandbox; see
   ISSUES for the scope note.)*
-- Engine unittest suite 164/164 green (re-run 2026-08-10, unchanged from
-  2026-08-03 — no engine commits landed this week). 12 hook modules / 16
-  event wirings in this repo's own `.claude/settings.json`, both counts still
-  consistent with each other and unchanged since 2026-08-03.
+- Engine unittest suite 164/164 green (re-run 2026-08-17, unchanged from
+  2026-08-10 — no engine commits landed this week either). 12 hook modules /
+  16 event wirings in this repo's own `.claude/settings.json`, both counts
+  still consistent with each other and unchanged since 2026-08-03.
 - Machine layer live (as of 2026-08-01; not re-checked this run — see
   ISSUES): crons for weekly-hygiene, pr-comment-poller, pr-rebase,
   kit-propagate (daily update PRs into targets; owner merges), and
@@ -56,10 +56,12 @@ regardless of task.
   scoped per-branch/MR and enforced at commit time, the cross-repo promotion
   bar rewritten to be present-tense/evidence-based, and `tools/pr-thread`
   added for in-thread PR replies + marker-gated resolve. Full detail in
-  CHANGELOG. **Quiet week since 2026-08-03**: the only commit in that window
-  is the 2026-08-03 hygiene run's own `.memory` commit (`ae12eee`), which is
-  still unpushed (1 commit ahead of `origin/main`) — expected per
-  weekly-hygiene's commit-but-never-push design, not a regression.
+  CHANGELOG. **Second quiet week running**: zero substantive commits between
+  2026-08-10 and 2026-08-17 — the only commit in that window is the 2026-08-10
+  hygiene run's own `.memory` commit (`5766bd6`). Unlike the 2026-08-03 commit
+  before it, `5766bd6` is no longer unpushed — `HEAD` now matches
+  `origin/main` exactly (both `ae12eee` and `5766bd6` have been pushed since
+  the last run), so there is currently no unpushed-commit backlog.
 
 ## Invariants
 

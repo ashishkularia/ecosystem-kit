@@ -1,5 +1,15 @@
 # DOCS-CHANGELOG — ecosystem-kit
 
+- 2026-08-17 — STATE.md revalidated (second quiet week running: zero
+  substantive commits since 2026-08-10, engine suite still 164/164, hook
+  wiring still 12/16, unchanged). One real correction: the previously-flagged
+  unpushed hygiene commit is no longer unpushed — `HEAD` now matches
+  `origin/main` (both `ae12eee` and `5766bd6` have landed on the remote since
+  the last run). VERIFY.md's three open items re-annotated, still open, same
+  reasons — re-confirmed the `~/.claude/*` sandbox boundary is unchanged
+  (ISSUES 2026-08-03, re-tested this run). No CHANGELOG-worthy change this
+  run.
+
 - 2026-08-10 — STATE.md revalidated (quiet week: zero substantive commits
   since 2026-08-03, engine suite still 164/164, hook wiring still 12/16,
   only change is date restamp + a note that last week's hygiene commit is
