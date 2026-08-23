@@ -1,6 +1,6 @@
 # STATE — ecosystem-kit
 
-Last validated: 2026-08-17
+Last validated: 2026-08-24
 
 ## What this repo is
 
@@ -43,8 +43,8 @@ regardless of task.
   frozen at the 2026-08-01 verification — this and subsequent weekly-hygiene
   runs check only what's readable from inside this repo's sandbox; see
   ISSUES for the scope note.)*
-- Engine unittest suite 164/164 green (re-run 2026-08-17, unchanged from
-  2026-08-10 — no engine commits landed this week either). 12 hook modules /
+- Engine unittest suite 164/164 green (re-run 2026-08-24, unchanged from
+  2026-08-17 — no engine commits landed this week either). 12 hook modules /
   16 event wirings in this repo's own `.claude/settings.json`, both counts
   still consistent with each other and unchanged since 2026-08-03.
 - Machine layer live (as of 2026-08-01; not re-checked this run — see
@@ -56,12 +56,16 @@ regardless of task.
   scoped per-branch/MR and enforced at commit time, the cross-repo promotion
   bar rewritten to be present-tense/evidence-based, and `tools/pr-thread`
   added for in-thread PR replies + marker-gated resolve. Full detail in
-  CHANGELOG. **Second quiet week running**: zero substantive commits between
-  2026-08-10 and 2026-08-17 — the only commit in that window is the 2026-08-10
-  hygiene run's own `.memory` commit (`5766bd6`). Unlike the 2026-08-03 commit
-  before it, `5766bd6` is no longer unpushed — `HEAD` now matches
-  `origin/main` exactly (both `ae12eee` and `5766bd6` have been pushed since
-  the last run), so there is currently no unpushed-commit backlog.
+  CHANGELOG. **Third quiet week running**: zero substantive commits between
+  2026-08-17 and 2026-08-24 — the only commit in that window is the 2026-08-17
+  hygiene run's own `.memory` commit (`2dbf17a`). That commit was never
+  pushed: `main` (`2dbf17a`) sits 1 commit ahead of `origin/main` (`5766bd6`)
+  at this run's start, unlike the previous two weeks where the prior hygiene
+  commit had already landed on the remote by the time this check ran. This
+  run's own hygiene commit adds a second unpushed commit on top — hygiene
+  commits are pushed by a separate step (or the owner), not by this run (see
+  CONVENTIONS: owner-only merges/pushes to main); the backlog is expected to
+  clear whenever that next push happens, not evidence of a process break.
 
 ## Invariants
 
