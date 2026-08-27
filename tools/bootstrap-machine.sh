@@ -35,13 +35,13 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches unwedge-hooks.py start-remote-sessions.sh; do
+for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches mcp-audit unwedge-hooks.py start-remote-sessions.sh; do
   if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
   else warn "tool not in this kit checkout, skipped: $t"; fi
 done
 cp "$KIT/tools/guard_protected_branch.py" "$HOOKS_MACHINE/guard_protected_branch.py"
 chmod +x "$HOOKS_MACHINE/guard_protected_branch.py"
-ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, unwedge-hooks, start-remote-sessions, guard_protected_branch"
+ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, mcp-audit, unwedge-hooks, start-remote-sessions, guard_protected_branch"
 
 act "machine guardrails -> settings.local.json"
 python3 - "$SETTINGS" "$BIN" "$HOOKS_MACHINE" <<'PYEOF'

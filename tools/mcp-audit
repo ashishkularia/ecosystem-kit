@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""mcp-audit [--days N] [--json] — report MCP servers nobody is using.
+
+Why this is a MACHINE tool, not a kit template
+----------------------------------------------
+The clutter it finds is machine-scoped, not project-scoped. `~/.mcp.json` is an
+ancestor project-scope file: with `enableAllProjectMcpServers` set, every server
+it names activates in EVERY repo under the home directory. On 2026-08-27 all
+five registered repos carried the identical eight-server list — aws-cfn,
+aws-ecs, aws-mcp, cloudflare-docs, cloudflare-workers, memory, shadcn, tanstack
+— with zero tool calls in seventeen days, in any of them.
+
+Baking those names into a kit template would be wrong twice over: they are this
+machine's, not any project's, and the kit must not accrete artifacts that only
+one setup needs. So it lives beside safe-push and weekly-hygiene, which already
+own machine-scope policy.
+
+Read-only. Reports; never edits settings, never disables anything. Disabling is
+a decision with per-project blast radius (`disabledMcpjsonServers` in a repo's
+`.claude/settings.local.json`), so it stays a human call.
+
+Usage:
+  mcp-audit                 # 30-day window over registered repos
+  mcp-audit --days 7        # narrower window
+  mcp-audit --json          # machine-readable, for cron digests
+"""
+import argparse
+import collections
+import glob
+import json
+import os
+import sys
+import time
+
+HOME = os.path.expanduser("~")
+REGISTRY = os.path.join(HOME, ".claude", "repo-registry")
+PROJECTS_DIR = os.path.join(HOME, ".claude", "projects")
+
+
+def read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def registered_repos():
+    try:
+        with open(REGISTRY, "r", encoding="utf-8") as f:
+            return [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
+    except OSError:
+        return []
+
+
+def configured_servers(repos):
+    """server name -> list of (scope, where) it is configured from.
+
+    Covers the three scopes Claude Code reads: user (`~/.claude.json`
+    mcpServers), project (`.mcp.json` in a repo AND in any ancestor directory —
+    the ancestor case is what makes one file reach every repo), and local
+    (per-project entries in `~/.claude.json`).
+    """
+    sources = collections.defaultdict(list)
+
+    root = read_json(os.path.join(HOME, ".claude.json"))
+    for name in (root.get("mcpServers") or {}):
+        sources[name].append(("user", "~/.claude.json"))
+
+    for path, entry in (root.get("projects") or {}).items():
+        for name in (entry.get("mcpServers") or {}):
+            sources[name].append(("local", path))
+
+    seen_files = set()
+    for repo in repos:
+        # The repo's own .mcp.json, then every ancestor up to $HOME.
+        current = os.path.abspath(repo)
+        while True:
+            candidate = os.path.join(current, ".mcp.json")
+            if os.path.isfile(candidate) and candidate not in seen_files:
+                seen_files.add(candidate)
+                label = candidate.replace(HOME, "~")
+                for name in (read_json(candidate).get("mcpServers") or {}):
+                    sources[name].append(("project", label))
+            parent = os.path.dirname(current)
+            if parent == current or len(current) <= len(HOME):
+                break
+            current = parent
+    return sources
+
+
+def normalize(name):
+    """Transcripts record the NORMALIZED server name: anything outside
+    [A-Za-z0-9_-] becomes '_'. A configured `claude.ai Gmail` shows up as
+    `claude_ai_Gmail`, so a literal comparison silently reports it unused."""
+    return "".join(c if (c.isalnum() or c in "_-") else "_" for c in name)
+
+
+def call_counts(days):
+    """normalized server name -> (calls, set of repos it was called in)."""
+    cutoff = time.time() - days * 86400
+    calls = collections.Counter()
+    repos = collections.defaultdict(set)
+    scanned = 0
+
+    for path in glob.glob(os.path.join(PROJECTS_DIR, "*", "*.jsonl")):
+        try:
+            if os.path.getmtime(path) < cutoff:
+                continue
+        except OSError:
+            continue
+        scanned += 1
+        project = os.path.basename(os.path.dirname(path))
+        try:
+            handle = open(path, errors="replace")
+        except OSError:
+            continue
+        with handle:
+            for line in handle:
+                if "mcp__" not in line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if event.get("type") != "assistant":
+                    continue
+                for block in (event.get("message") or {}).get("content") or []:
+                    if not isinstance(block, dict) or block.get("type") != "tool_use":
+                        continue
+                    name = block.get("name") or ""
+                    if not name.startswith("mcp__"):
+                        continue
+                    parts = name.split("__")
+                    if len(parts) >= 3:
+                        calls[parts[1]] += 1
+                        repos[parts[1]].add(project)
+    return calls, repos, scanned
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Report unused MCP servers.")
+    parser.add_argument("--days", type=int, default=30, help="scan window (default 30)")
+    parser.add_argument("--json", action="store_true", dest="as_json")
+    args = parser.parse_args()
+
+    repos = registered_repos()
+    if not repos:
+        print("No repos registered (%s). Nothing to audit." % REGISTRY.replace(HOME, "~"),
+              file=sys.stderr)
+        return 1
+
+    sources = configured_servers(repos)
+    calls, called_in, scanned = call_counts(args.days)
+
+    rows = []
+    for name in sorted(sources):
+        used = calls.get(normalize(name), 0)
+        rows.append({
+            "server": name,
+            "calls": used,
+            "used_in_repos": sorted(called_in.get(normalize(name), ())),
+            "configured_from": ["%s: %s" % (scope, where) for scope, where in sources[name]],
+            "verdict": "keep" if used else "unused",
+        })
+
+    if args.as_json:
+        print(json.dumps({
+            "window_days": args.days,
+            "transcripts_scanned": scanned,
+            "repos": repos,
+            "servers": rows,
+        }, indent=2))
+        return 0
+
+    unused = [r for r in rows if r["verdict"] == "unused"]
+    print("MCP audit — %d-day window, %d transcript file(s), %d registered repo(s)"
+          % (args.days, scanned, len(repos)))
+    print("=" * 72)
+    width = max([len(r["server"]) for r in rows] + [6])
+    for row in rows:
+        mark = "  " if row["calls"] else "! "
+        print("%s%-*s %6d call(s)   %s"
+              % (mark, width, row["server"], row["calls"], "; ".join(row["configured_from"])))
+
+    print("")
+    if not unused:
+        print("Every configured server was used in the window. Nothing to clean up.")
+        return 0
+
+    print("%d server(s) with zero calls in %d days:" % (len(unused), args.days))
+    for row in unused:
+        print("  - %s  (%s)" % (row["server"], "; ".join(row["configured_from"])))
+    print("")
+    print("These cost no context — MCP tool schemas are deferred, so only the tool")
+    print("NAME is resident. The reason to disable is decluttering: fewer connections")
+    print("to authenticate, maintain and keep updated.")
+    print("")
+    print("To disable one, per repo, add its name to \"disabledMcpjsonServers\" in that")
+    print("repo's .claude/settings.local.json (gitignored). Note that a server from an")
+    print("ancestor .mcp.json reaches EVERY repo below it, so this is repeated per repo")
+    print("by design — there is no single off switch that does not also disable the")
+    print("servers you do use. Never `claude mcp remove`: that deletes the config and")
+    print("its OAuth tokens.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

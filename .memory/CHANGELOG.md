@@ -1,5 +1,20 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **update.sh delivers commands and agents again; three commands
+  promoted.** `update.sh` refreshed engine + skills only and `install.sh` is
+  skip-if-exists, so an IMPROVED kit command could reach no installed repo:
+  `templates/commands/pr-babysit.md` gained in-thread replies on 2026-08-13 and
+  none of the five repos ever got it. Fixed without a new manifest, using a
+  baseline the kit already records — `.claude/kit-version` names the kit commit
+  the target was installed from, so `git show <commit>:templates/…` IS the
+  as-installed file. Target still matching it => untouched => refresh; anything
+  else => customized => `KEPT` and left alone. Promotions in the same change:
+  `dev` (forked in DevContainer AND mylantite, 130 uses), `migration-review`
+  and `security-audit` (mylantite-only, one project-specific reference each;
+  meritick runs the same stack today). New machine tool `tools/mcp-audit`
+  reports MCP servers with zero calls across registered repos — nine on this
+  machine, eight of them in all five repos.
+
 - 2026-08-03 — **PR replies go in-thread, and addressed threads get resolved**
   (owner rule). The poller's prompt said only "reply to each addressed thread"
   and `/pr-babysit` said "reply with reasoning" — neither said *how*, and

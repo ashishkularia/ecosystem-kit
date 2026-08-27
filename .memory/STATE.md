@@ -35,7 +35,7 @@ regardless of task.
 
 - kit v1.0.0 ROLLED OUT (verified 2026-08-01): installed in all five
   registered repos, every `.claude/kit-version` stamped from a real kit commit
-  (7e0d2d8 or 59916b5), all on the cwd-independent `$CLAUDE_PROJECT_DIR` hook
+  (all five on `13dcdcf`, 2026-08-01 — re-verified 2026-08-27), all on the cwd-independent `$CLAUDE_PROJECT_DIR` hook
   wiring; engine hooks confirmed producing live-session artifacts in
   mylantite/meritick caches. The former rollout blocker is cleared —
   `~/.claude/settings.local.json` now carries only the machine-level branch

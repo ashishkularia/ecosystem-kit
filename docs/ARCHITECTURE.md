@@ -150,6 +150,7 @@ A local `git commit` on a protected branch remains allowed by design — `weekly
 | `settings.local.json` | merge `autoMemoryDirectory` via python3 (preserve other keys) |
 | `.gitignore` | append missing snippet lines (`.claude/hooks/.daemon.*`, `.claude/hooks/__pycache__/`, `.claude/settings.local.json`; `kit-version` **is** tracked). `.memory/cache/` is NOT in the snippet — it self-ignores via a tracked `cache/.gitignore` (`*` + `!.gitignore`) so the dir survives clones; the installer scrubs the legacy root line and seeds `.gitkeep` into empty `diary/`/`auto/` |
 | `scripts/health-check.sh` → `.claude/scripts/` | overwrite always (kit-owned, same class as the engine) |
+| `commands/`, `agents/` (update.sh) | refresh **only while still byte-identical to the kit template the target was installed from** — the baseline is the kit commit recorded in `.claude/kit-version`, resolved with `git show <commit>:templates/…`. Customized files are reported `KEPT` and left alone; an unresolvable baseline is treated as customized. Closes the gap where an improved kit command (`pr-babysit`, 2026-08-13) could reach no installed repo, since `update.sh` skipped commands and `install.sh` is skip-if-exists |
 | `.claude/kit-version` | stamp |
 
 `installer/update.sh TARGET_DIR` — refreshes **engine + scripts + skills only**, never `.memory/`, `kit.json`, or `settings.json`, and shows what changed.
@@ -213,6 +214,7 @@ Repo-level guardrails cannot stop a push issued outside any repo, so a thin mach
 | deny permissions | `~/.claude/settings.local.json` | `git push` / `git config` / `git clean` and GitHub MCP merge tools denied machine-wide |
 | `safe-push` | `~/.claude/bin` | the only allowed push path — refuses updates to an existing remote default branch, force pushes, and deletions; feature branches and first-publish allowed |
 | `guard_protected_branch.py` | `~/.claude/hooks-machine` | PreToolUse guard wired against `mcp__github__*` tools in the machine settings |
+| `mcp-audit` | `~/.claude/bin` | read-only report of MCP servers with zero tool calls across the registered repos. Machine-scope by nature: `~/.mcp.json` is an ANCESTOR project-scope file, so with `enableAllProjectMcpServers` every server it names activates in every repo below it — on 2026-08-27 all five repos carried the same eight unused servers. Reports only; disabling is per-repo (`disabledMcpjsonServers`) and stays a human call |
 | repo registry | `~/.claude/repo-registry` | one checkout path per line; the shared roster both cron tools read (`pr-comment-poller register <path>` manages it) |
 | cron | user crontab | `weekly-hygiene` (Mon 06:07 — headless `.memory/` drain loops, doc-only, never pushes) and `pr-comment-poller` (every 15 min, 07–23h — headless `claude -p` run when new owner comments land on an open PR) |
 
