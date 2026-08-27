@@ -73,6 +73,10 @@ _KIT_DEFAULTS = {
         "dir": "docs/artifacts",
         "commit": True,
         "commit_type": "docs",
+        # Empty = nothing runs. Set it to carry the mirrored tree to wherever
+        # the project serves it; {dir} and {project} are substituted.
+        "deploy_command": "",
+        "deploy_timeout": 300,
     },
     "diary": True,
     # "branch": one diary per branch/MR (`YYYY-MM-DD-<branch-slug>.md`), so a

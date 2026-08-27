@@ -138,7 +138,9 @@
     "enabled": true,
     "dir": "docs/artifacts",
     "commit": true,
-    "commit_type": "docs"
+    "commit_type": "docs",
+    "deploy_command": "",
+    "deploy_timeout": 300
   },
   "diary": true,
   "diary_scope": "branch"

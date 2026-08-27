@@ -2,24 +2,52 @@
   "kit_version": "1.0.0",
   "project": "ecosystem-kit",
   "stack": "python-stdlib + bash",
-  "_note": "The kit's profile for ITSELF. Unlike every other target, the kit is not installed by copying the engine into .claude/hooks/ — settings.json wires hooks straight at engine/hooks/_client.py, the live source. A copy would be a second engine that drifts from the one under development, and stale duplicated engine code is the exact class of bug this repo shipped fixes for on 2026-08-01 (three forked command splitters, a daemon serving pre-update hooks). engine/hooks/ sits at the same depth as .claude/hooks/, so _constants' PROJECT_ROOT derivation is unchanged.",
-  "protected_branches": ["main", "master"],
-  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "_note": "The kit's profile for ITSELF. Unlike every other target, the kit is not installed by copying the engine into .claude/hooks/ \u2014 settings.json wires hooks straight at engine/hooks/_client.py, the live source. A copy would be a second engine that drifts from the one under development, and stale duplicated engine code is the exact class of bug this repo shipped fixes for on 2026-08-01 (three forked command splitters, a daemon serving pre-update hooks). engine/hooks/ sits at the same depth as .claude/hooks/, so _constants' PROJECT_ROOT derivation is unchanged.",
+  "protected_branches": [
+    "main",
+    "master"
+  ],
+  "branch_types": [
+    "feature",
+    "fix",
+    "hotfix",
+    "bugfix",
+    "chore",
+    "docs",
+    "refactor",
+    "test",
+    "revert"
+  ],
   "merge_is_deploy": true,
   "ceremony": {
     "default": "full",
     "levels": {
-      "express": ["G1"],
-      "standard": ["G1", "G2"],
-      "full": ["G1", "G2", "G3"],
-      "critical": ["G1", "G2", "G3"]
+      "express": [
+        "G1"
+      ],
+      "standard": [
+        "G1",
+        "G2"
+      ],
+      "full": [
+        "G1",
+        "G2",
+        "G3"
+      ],
+      "critical": [
+        "G1",
+        "G2",
+        "G3"
+      ]
     }
   },
   "gates": {
     "G1": {
       "name": "Engine tests",
       "desc": "The stdlib unittest suite is green. PASS = exits 0.",
-      "commands": ["python3 -m unittest discover -s engine/hooks/tests -q"]
+      "commands": [
+        "python3 -m unittest discover -s engine/hooks/tests -q"
+      ]
     },
     "G2": {
       "name": "Install round-trip",
@@ -37,7 +65,9 @@
     "format": [],
     "lint": [],
     "typecheck": [],
-    "test": ["python3 -m unittest discover -s engine/hooks/tests -q"]
+    "test": [
+      "python3 -m unittest discover -s engine/hooks/tests -q"
+    ]
   },
   "source_patterns": [
     "^engine/hooks/(?!tests/)[^/]*\\.py$",
@@ -59,5 +89,8 @@
     "dry_kiss": "advise"
   },
   "diary": true,
-  "diary_scope": "branch"
+  "diary_scope": "branch",
+  "artifacts": {
+    "deploy_command": "bash /home/ubuntu/homeassistant/ops/lxc/deploy-artifacts.sh {project} {dir}"
+  }
 }

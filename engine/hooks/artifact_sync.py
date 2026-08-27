@@ -62,6 +62,7 @@ INDEX_NAME = "INDEX.md"
 META_NAME = "artifact.json"
 MAX_SLUG = 60
 GIT_TIMEOUT = 20
+DEPLOY_TIMEOUT = 300
 
 # Actions the Artifact tool accepts that are NOT a publish. A comment read or
 # an asset upload must not create a directory.
@@ -78,6 +79,8 @@ def cfg() -> dict:
         "dir": conf.get("dir") or "docs/artifacts",
         "commit": conf.get("commit", True),
         "commit_type": conf.get("commit_type") or "docs",
+        "deploy_command": conf.get("deploy_command") or "",
+        "deploy_timeout": conf.get("deploy_timeout") or DEPLOY_TIMEOUT,
     }
 
 
@@ -323,6 +326,52 @@ def commit(paths, message, conf):
     return "committed on '%s'" % branch
 
 
+def deploy(conf, artifacts_dir):
+    """Run artifacts.deploy_command so the mirrored tree reaches its host.
+
+    Mirroring makes an artifact durable; it does not make it *reachable*. A repo
+    serving `docs/artifacts/` from somewhere (the kularia homelab publishes it at
+    artifacts.kularia.net via an nginx LXC) otherwise needs a human to remember a
+    second command after every publish — which is exactly the kind of step that
+    silently stops happening.
+
+    The command is a shell string from kit.json, the same trust level as
+    `quality_commands` and `gates.commands`: kit.json is project-owned and is
+    already how a project tells the ecosystem what to execute. It ships EMPTY,
+    so nothing runs unless a project opts in.
+
+    Placeholders: {dir} absolute path to the artifacts tree, {project} the
+    kit.json project name (deploy targets usually key on it).
+
+    Advisory: a failed or slow deploy is reported, never fatal — the artifact is
+    already written and committed by the time we get here, and a publish must
+    not fail because a host is unreachable.
+    """
+    command = conf["deploy_command"]
+    if not command:
+        return None
+
+    project = str(load_kit().get("project") or os.path.basename(PROJECT_ROOT))
+    try:
+        rendered = command.format(dir=artifacts_dir, project=project)
+    except (KeyError, IndexError, ValueError) as e:
+        return "deploy skipped — bad placeholder in artifacts.deploy_command (%s)" % e
+
+    try:
+        r = subprocess.run(rendered, shell=True, cwd=PROJECT_ROOT, capture_output=True,
+                           text=True, timeout=conf["deploy_timeout"])
+    except subprocess.TimeoutExpired:
+        return "deploy TIMED OUT after %ss (artifact is committed; host may be stale)" % conf["deploy_timeout"]
+    except (OSError, subprocess.SubprocessError) as e:
+        return "deploy failed to start: %s" % e
+
+    if r.returncode != 0:
+        detail = (r.stderr or r.stdout or "").strip().splitlines()
+        return "deploy FAILED (exit %d): %s" % (r.returncode, detail[-1] if detail else "no output")
+    tail = (r.stdout or "").strip().splitlines()
+    return "deployed: %s" % (tail[-1] if tail else "ok")
+
+
 def main():
     try:
         event = json.loads(sys.stdin.read())
@@ -445,12 +494,16 @@ def main():
         conf,
     )
 
+    deploy_status = deploy(conf, root)
+
     lines = [
         "Artifact mirrored into the repo (ecosystem-kit artifact_sync):",
         "  -> %s/ (%s)" % (rel_target, ", ".join(written) or "no files written"),
         "  source of truth: %s — the other file is generated, do not edit it" % src_name,
         "  %s" % status,
     ]
+    if deploy_status:
+        lines.append("  %s" % deploy_status)
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",

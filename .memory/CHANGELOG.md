@@ -1,5 +1,17 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **Published artifacts now reach their host automatically
+  (`artifacts.deploy_command`).** `artifact_sync` made artifacts durable but not
+  reachable: the kularia homelab serves them at `artifacts.kularia.net/<repo>/`
+  via `ops/lxc/deploy-artifacts.sh`, and that was a manual second command after
+  every publish. New optional shell string, run after the sync with `{dir}` and
+  `{project}` substituted and bounded by `deploy_timeout` (300s). Ships EMPTY, so
+  nothing runs unless a project opts in. Advisory by construction — a failed,
+  slow or misconfigured deploy is reported and never fails the publish, since the
+  artifact is written and committed before it runs. Verified end to end against
+  the live host: publish -> mirror -> commit -> `artifacts.kularia.net` in one
+  action. 7 new tests, 205 green.
+
 - 2026-08-27 — **gh actually authenticates now; verify_gh tests the credential,
   not the binary.** The gh bootstrap step named `~/.secrets/github-pat` but its
   command was `gh auth status` — a check that persists nothing — under the
