@@ -152,7 +152,15 @@ PYEOF
 }
 
 verify_gh() {
-  command -v gh >/dev/null 2>&1 || [ -x "$HOME/.local/bin/gh" ]
+  local gh_bin
+  gh_bin="$(command -v gh 2>/dev/null || echo "$HOME/.local/bin/gh")"
+  [ -x "$gh_bin" ] || return 1
+  # Presence is not usefulness. An installed-but-unauthenticated gh passes a
+  # binary check and then fails the moment a session actually needs a PR —
+  # exactly the situation this step exists to prevent. Check auth, and check it
+  # WITHOUT GH_TOKEN so we are testing the persisted credential rather than
+  # whatever happens to be in this shell.
+  env -u GH_TOKEN -u GITHUB_TOKEN "$gh_bin" auth status >/dev/null 2>&1
 }
 
 verify_claude() {
@@ -216,8 +224,21 @@ step "GitHub CLI (gh)" \
    second curl resuming into the same file produces an oversized, corrupt
    archive that still looks like a normal failure (2026-08-27).
 
-   Then authenticate. gh can reuse the PAT the machine layer already owns:
-     GH_TOKEN=\"\$(cat ~/.secrets/github-pat)\" gh auth status" \
+   Then authenticate ONCE, from the PAT the machine layer already owns — no
+   second credential, no interactive OAuth, nothing to type:
+
+     gh auth login --with-token < ~/.secrets/github-pat
+     gh auth status          # expect: Logged in to github.com account <you>
+
+   --with-token stores the token you hand it; it does NOT mint a new one (the
+   interactive flow does). The cost is that the same token then also lives in
+   ~/.config/gh/hosts.yml (gh writes it 0600), so rotating means updating both
+   files — verify_gh checks the stored copy still works, so drift shows up at
+   bootstrap rather than mid-task.
+
+   Every kit machine tool (kit-propagate, pr-thread, pr-comment-poller,
+   pr-rebase, prune-stale-branches) reads ~/.secrets/github-pat directly and
+   needs no environment variable. This step is only so bare \`gh\` works too." \
 verify_gh
 
 step "Register project checkouts" \
