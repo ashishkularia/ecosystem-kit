@@ -1,5 +1,19 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **kit-propagate: prune stale tracking refs, and never orphan a
+  pushed branch.** Two defects found by completing a real five-repo run, one of
+  them introduced by that morning's own fix. (1) The new prefix skip reads LOCAL
+  `refs/remotes/origin/chore/kit-update-*`, and `git fetch` without `--prune`
+  never drops the ref for a branch the remote deleted — which GitHub does on
+  every PR merge. So a repo whose kit update merged would be skipped **forever**:
+  one kit update per repo, then silence. The exact-branch check it replaced was
+  equally stale but self-healed, because the branch name changed whenever kit
+  main moved. Fixed with `--prune`. (2) `create_pr` let `urllib` exceptions
+  escape, killing the run AFTER the branch was pushed — a transient
+  `RemoteDisconnected` left grade5 with a branch and no PR, which the prefix skip
+  then reads as "pending" forever. Now retries once and, failing that, reports
+  the orphan with the exact `gh pr create` to recover.
+
 - 2026-08-27 — **`gh` is now a machine-layer prerequisite, with a bootstrap
   step and `verify_gh`.** The GitHub MCP server disconnected repeatedly during a
   working session, leaving no way to open a PR — three had to be created through
