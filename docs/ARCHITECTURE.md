@@ -165,6 +165,19 @@ unchanged rather than nested inside a second `<html>`. Convention generalized
 from homeassistant's `artifacts/build.py` (2026-08-26), which solved the same
 problem manually for that repo.
 
+**Reaching its host.** Mirroring makes an artifact durable, not *reachable*. A
+repo that serves `docs/artifacts/` somewhere would otherwise need a human to
+remember a second command after every publish — the kind of step that silently
+stops happening. `artifacts.deploy_command` (empty by default, so nothing runs)
+is a shell string run after the sync, with `{dir}` and `{project}` substituted;
+`deploy_timeout` bounds it. Same trust level as `quality_commands` and
+`gates.commands`: kit.json is project-owned and is already how a project says
+what to execute. **Advisory** — a failed, slow or misconfigured deploy is
+reported and never fails the publish, because the artifact is written and
+committed before it runs, so an unreachable host can never cost you the
+artifact. This repo uses it against the kularia homelab's
+`ops/lxc/deploy-artifacts.sh`, which publishes to `artifacts.kularia.net/<repo>/`.
+
 **The tree is a static site as-is.** Every artifact directory has an
 `index.html` and the root has a generated gallery, so `npx serve docs/artifacts`
 (or any static server) needs no build step and no config: `/` is the gallery,

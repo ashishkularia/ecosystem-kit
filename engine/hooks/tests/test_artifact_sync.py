@@ -63,7 +63,8 @@ class SyncTestBase(unittest.TestCase):
 
         self._orig_cfg = MOD.cfg
         MOD.cfg = lambda: {"enabled": True, "dir": "docs/artifacts",
-                           "commit": False, "commit_type": "docs"}
+                           "commit": False, "commit_type": "docs",
+                           "deploy_command": "", "deploy_timeout": 5}
         self.addCleanup(setattr, MOD, "cfg", self._orig_cfg)
 
     def source(self, name, text):
@@ -485,3 +486,56 @@ class ViewablePageTest(SyncTestBase):
         d = os.path.join(self.artifacts_root, "sample-title")
         self.assertTrue(os.path.isfile(os.path.join(d, "index.html")))
         self.assertFalse(os.path.isfile(os.path.join(d, "sample-title.html")))
+
+
+class DeployCommandTest(SyncTestBase):
+    """artifacts.deploy_command carries the mirrored tree to its host.
+
+    Ships empty (opt-in). Advisory: the artifact is already written and
+    committed by the time deploy runs, so an unreachable host must never fail
+    a publish.
+    """
+
+    def conf(self, command, timeout=5):
+        return {"enabled": True, "dir": "docs/artifacts", "commit": False,
+                "commit_type": "docs", "deploy_command": command,
+                "deploy_timeout": timeout}
+
+    def test_empty_command_runs_nothing(self):
+        self.assertIsNone(MOD.deploy(self.conf(""), "/tmp/x"))
+
+    def test_placeholders_are_substituted(self):
+        marker = os.path.join(self.tmp, "deployed.txt")
+        status = MOD.deploy(self.conf("printf '%s' \"{dir}\" > " + marker), "/some/artifacts")
+        self.assertIn("deployed", status)
+        with open(marker) as f:
+            self.assertEqual(f.read(), "/some/artifacts")
+
+    def test_project_placeholder_available(self):
+        marker = os.path.join(self.tmp, "proj.txt")
+        status = MOD.deploy(self.conf("printf '%s' \"{project}\" > " + marker), "/d")
+        self.assertIn("deployed", status)
+        with open(marker) as f:
+            self.assertTrue(f.read())
+
+    def test_failure_is_reported_not_raised(self):
+        status = MOD.deploy(self.conf("echo boom >&2; exit 3"), "/d")
+        self.assertIn("deploy FAILED (exit 3)", status)
+        self.assertIn("boom", status)
+
+    def test_timeout_is_reported_not_raised(self):
+        status = MOD.deploy(self.conf("sleep 5", timeout=1), "/d")
+        self.assertIn("TIMED OUT", status)
+
+    def test_bad_placeholder_does_not_crash(self):
+        status = MOD.deploy(self.conf("echo {nope}"), "/d")
+        self.assertIn("bad placeholder", status)
+
+    def test_publish_still_succeeds_when_deploy_fails(self):
+        """The whole point: a dead host must not lose the artifact."""
+        MOD.cfg = lambda: self.conf("exit 9")
+        src = self.source("note.md", "# x\n")
+        self.assertEqual(self.run_hook(payload(src)), 0)
+        d = os.path.join(self.artifacts_root, "sample-title")
+        self.assertTrue(os.path.isfile(os.path.join(d, "sample-title.md")))
+        self.assertTrue(os.path.isfile(os.path.join(d, "index.html")))
