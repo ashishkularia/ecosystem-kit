@@ -1,5 +1,17 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **gh actually authenticates now; verify_gh tests the credential,
+  not the binary.** The gh bootstrap step named `~/.secrets/github-pat` but its
+  command was `gh auth status` — a check that persists nothing — under the
+  heading "Then authenticate". So bare `gh` returned "not logged into any GitHub
+  hosts" while `verify_gh` (which only tested that a binary existed) reported the
+  step green. Now: `gh auth login --with-token < ~/.secrets/github-pat` persists
+  it once, and `verify_gh` runs `gh auth status` with GH_TOKEN/GITHUB_TOKEN unset
+  so it tests the stored credential rather than the caller's shell. Also corrects
+  a DECISIONS claim that `gh auth login` mints a second credential — true of the
+  interactive flow, false of `--with-token`. Every Python machine tool already
+  read the PAT file directly and was never affected.
+
 - 2026-08-27 — **kit-propagate: prune stale tracking refs, and never orphan a
   pushed branch.** Two defects found by completing a real five-repo run, one of
   them introduced by that morning's own fix. (1) The new prefix skip reads LOCAL
