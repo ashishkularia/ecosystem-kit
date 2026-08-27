@@ -1,0 +1,517 @@
+<title>Claude Code Checkup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #F6F7F9;
+    --surface:     #FFFFFF;
+    --surface-alt: #EDEFF3;
+    --ink:         #12171F;
+    --slate:       #5A6472;
+    --slate-soft:  #8A939F;
+    --rule:        #DCE0E7;
+    --rule-strong: #C3C9D3;
+    --accent:      #B4622E;
+    --accent-soft: #F0E2D8;
+    --good:        #2F6F4F;
+    --warn:        #A8761C;
+    --crit:        #A33A32;
+    --good-bg:     #E4EFE8;
+    --warn-bg:     #F6ECD8;
+    --crit-bg:     #F5E2E0;
+
+    --step--1: 0.815rem;
+    --step-0:  1rem;
+    --step-1:  1.26rem;
+    --step-2:  1.6rem;
+    --step-3:  2.1rem;
+    --step-4:  2.9rem;
+
+    --measure: 68ch;
+    --gap: 1.5rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0F1319;
+      --surface:     #161B23;
+      --surface-alt: #1D242E;
+      --ink:         #E5E9EF;
+      --slate:       #9AA4B2;
+      --slate-soft:  #6D7684;
+      --rule:        #262E39;
+      --rule-strong: #38424F;
+      --accent:      #E08B4E;
+      --accent-soft: #33241A;
+      --good:        #6FBF92;
+      --warn:        #D9AC5A;
+      --crit:        #E0817A;
+      --good-bg:     #16261E;
+      --warn-bg:     #2A2115;
+      --crit-bg:     #2B1917;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0F1319;
+    --surface:     #161B23;
+    --surface-alt: #1D242E;
+    --ink:         #E5E9EF;
+    --slate:       #9AA4B2;
+    --slate-soft:  #6D7684;
+    --rule:        #262E39;
+    --rule-strong: #38424F;
+    --accent:      #E08B4E;
+    --accent-soft: #33241A;
+    --good:        #6FBF92;
+    --warn:        #D9AC5A;
+    --crit:        #E0817A;
+    --good-bg:     #16261E;
+    --warn-bg:     #2A2115;
+    --crit-bg:     #2B1917;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.1rem, 4vw, 2.5rem) 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3.25rem;
+  }
+
+  .prose { max-width: var(--measure); }
+
+  h1, h2, h3 {
+    font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+  }
+
+  h1 { font-size: var(--step-4); }
+  h2 { font-size: var(--step-2); }
+  h3 { font-size: var(--step-1); font-weight: 500; }
+
+  p { margin: 0; }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+  }
+
+  code {
+    background: var(--surface-alt);
+    padding: 0.1em 0.36em;
+    border-radius: 3px;
+    word-break: break-word;
+  }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--slate-soft);
+  }
+
+  /* ── masthead ─────────────────────────────────────── */
+  .masthead { display: flex; flex-direction: column; gap: 1rem; }
+  .masthead p { color: var(--slate); font-size: var(--step-1); max-width: var(--measure); }
+  .runline {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    color: var(--slate-soft);
+    border-top: 1px solid var(--rule);
+    padding-top: 0.85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.5rem;
+  }
+
+  /* ── vitals ───────────────────────────────────────── */
+  .vitals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  .vital {
+    background: var(--surface);
+    padding: 1.15rem 1.15rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .vital dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--slate-soft);
+  }
+  .vital dd {
+    margin: 0;
+    font-family: "Bricolage Grotesque", ui-sans-serif, sans-serif;
+    font-size: var(--step-3);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+  .vital .sub { font-family: "IBM Plex Sans", sans-serif; font-size: var(--step--1); font-weight: 400; color: var(--slate); letter-spacing: 0; }
+  .vital.is-good dd { color: var(--good); }
+  .vital.is-warn dd { color: var(--warn); }
+  .vital.is-crit dd { color: var(--crit); }
+
+  /* ── sections ─────────────────────────────────────── */
+  section { display: flex; flex-direction: column; gap: 1.35rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  /* ── findings ─────────────────────────────────────── */
+  .findings { display: flex; flex-direction: column; }
+  .finding {
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0.35rem 1rem;
+    padding: 1.35rem 0;
+    border-top: 1px solid var(--rule);
+    align-items: start;
+  }
+  .finding:last-child { border-bottom: 1px solid var(--rule); }
+  .finding .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    color: var(--slate-soft);
+    font-variant-numeric: tabular-nums;
+    padding-top: 0.28rem;
+  }
+  .finding .body { display: flex; flex-direction: column; gap: 0.5rem; max-width: var(--measure); }
+  .finding .title-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; }
+  .finding p { color: var(--slate); }
+  .finding .body > ul { margin: 0; padding-left: 1.1rem; color: var(--slate); display: flex; flex-direction: column; gap: 0.3rem; }
+
+  .chip {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 0.16rem 0.5rem;
+    border-radius: 2px;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .chip.good { background: var(--good-bg); color: var(--good); }
+  .chip.warn { background: var(--warn-bg); color: var(--warn); }
+  .chip.crit { background: var(--crit-bg); color: var(--crit); }
+  .chip.done { background: var(--accent-soft); color: var(--accent); }
+
+  /* ── tables ───────────────────────────────────────── */
+  .scroller { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+  caption {
+    text-align: left;
+    padding: 0.85rem 1rem;
+    color: var(--slate);
+    font-size: var(--step--1);
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface-alt);
+  }
+  th, td { padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--slate-soft);
+    font-weight: 500;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  td.verdict-remove { color: var(--crit); font-weight: 500; }
+  td.verdict-keep { color: var(--good); }
+  tr.is-hot td:first-child { box-shadow: inset 3px 0 0 var(--accent); font-weight: 500; }
+
+  /* ── callout ──────────────────────────────────────── */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 1.1rem 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    max-width: var(--measure);
+  }
+  .callout .eyebrow { color: var(--accent); }
+  .callout p { color: var(--slate); }
+
+  /* ── todo list ────────────────────────────────────── */
+  .todo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .todo li {
+    display: grid;
+    grid-template-columns: 1.6rem 1fr;
+    gap: 0.9rem;
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .todo li:last-child { border-bottom: 1px solid var(--rule); }
+  .todo .mark { font-family: "IBM Plex Mono", monospace; color: var(--accent); font-size: var(--step--1); }
+  .todo strong { font-weight: 600; }
+  .todo p { color: var(--slate); font-size: var(--step--1); max-width: var(--measure); }
+
+  footer {
+    border-top: 1px solid var(--rule-strong);
+    padding-top: 1.25rem;
+    color: var(--slate-soft);
+    font-size: var(--step--1);
+    max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Environment audit · 27 Aug 2026</span>
+    <h1>Claude Code Checkup</h1>
+    <p class="prose">The installation is healthy and nothing is broken. The clutter was in extensions &mdash; six plugins and fourteen external tool connections that hadn&rsquo;t been touched in seventeen days, costing context in every single session.</p>
+    <div class="runline">
+      <span>50 sessions</span>
+      <span>6 repos</span>
+      <span>17.2 days</span>
+      <span>64,588 transcript lines</span>
+      <span>11,263 tool calls</span>
+    </div>
+  </header>
+
+  <dl class="vitals">
+    <div class="vital is-good">
+      <dt>Install health</dt>
+      <dd>OK</dd>
+      <span class="sub">native, no leftovers</span>
+    </div>
+    <div class="vital is-warn">
+      <dt>Version</dt>
+      <dd>2.1.237</dd>
+      <span class="sub">latest is 2.1.247</span>
+    </div>
+    <div class="vital">
+      <dt>Context freed</dt>
+      <dd>~1.3k</dd>
+      <span class="sub">est. tokens per session</span>
+    </div>
+    <div class="vital">
+      <dt>Disabled</dt>
+      <dd>8 + 8</dd>
+      <span class="sub">plugins + connections</span>
+    </div>
+    <div class="vital is-crit">
+      <dt>Denials</dt>
+      <dd>445</dd>
+      <span class="sub">350 declined by you</span>
+    </div>
+  </dl>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Applied</span>
+      <h2>What changed</h2>
+    </div>
+    <div class="findings">
+
+      <div class="finding">
+        <span class="num">01</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>Eight unused plugins switched off</h3>
+            <span class="chip done">done</span>
+          </div>
+          <p><code>cloudflare</code>, <code>feature-dev</code>, <code>claude-code-setup</code>, <code>skill-creator</code>, <code>context7</code>, <code>firebase</code>, <code>typescript-lsp</code>, <code>php-lsp</code> &mdash; flipped to <code>false</code> in <code>~/.claude/settings.json</code>. The two LSP backends carry a caveat: their usage tracking shipped recently, so a lifetime zero may simply predate it.</p>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="num">02</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>Eight idle tool connections disabled</h3>
+            <span class="chip done">done</span>
+          </div>
+          <p>Zero calls across every repo in the window. They arrive from <code>/home/ubuntu/.mcp.json</code>, an ancestor file that reaches every project under your home directory &mdash; so this turns them off <em>in this repo only</em>.</p>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="num">03</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>Auto mode is now the default</h3>
+            <span class="chip done">done</span>
+          </div>
+          <p>A safety classifier approves routine actions instead of prompting each time. It was active per-session but never persisted. This cannot lock you out &mdash; if auto mode is ever unavailable, the CLI falls back to normal prompting with a notice.</p>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="num">04</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>Three read-only commands pre-approved</h3>
+            <span class="chip warn">judgement call</span>
+          </div>
+          <p><code>Bash(gh pr view *)</code>, <code>Bash(gh pr checks *)</code> and <code>mcp__home-assistant__ha_get_overview</code>. Worth knowing: all ~94 of those denials were <em>you declining at the prompt</em>, not friction from a rule. If those refusals were deliberate, say so and I&rsquo;ll pull the rules back out.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Extensions</span>
+      <h2>What earns its place</h2>
+    </div>
+    <div class="scroller">
+      <table>
+        <caption>Lifetime counters are cumulative since install; the window column comes from transcripts. Tool connections have no counter.</caption>
+        <thead>
+          <tr>
+            <th scope="col">Component</th>
+            <th scope="col">Type</th>
+            <th scope="col" class="num">Uses</th>
+            <th scope="col">In window</th>
+            <th scope="col" class="num">Est. tokens</th>
+            <th scope="col">Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="is-hot"><td>stripe</td><td>plugin</td><td class="num">1</td><td>yes</td><td class="num">1,180</td><td class="verdict-keep">keep &mdash; but costliest</td></tr>
+          <tr><td>deploy-on-aws</td><td>plugin</td><td class="num">12,633</td><td>yes</td><td class="num">300</td><td class="verdict-keep">keep</td></tr>
+          <tr><td>ralph-loop</td><td>plugin</td><td class="num">1,703</td><td>yes</td><td class="num">75</td><td class="verdict-keep">keep</td></tr>
+          <tr><td>playwright</td><td>plugin</td><td class="num">1,365</td><td>yes</td><td class="num">deferred</td><td class="verdict-keep">keep</td></tr>
+          <tr><td>chrome-devtools-mcp</td><td>plugin</td><td class="num">473</td><td>yes</td><td class="num">427</td><td class="verdict-keep">keep</td></tr>
+          <tr><td>frontend-design</td><td>plugin</td><td class="num">193</td><td>no</td><td class="num">59</td><td class="verdict-keep">keep &mdash; heavy history</td></tr>
+          <tr class="is-hot"><td>cloudflare</td><td>plugin</td><td class="num">21</td><td>no</td><td class="num">890</td><td class="verdict-remove">removed</td></tr>
+          <tr><td>feature-dev</td><td>plugin</td><td class="num">5</td><td>no</td><td class="num">200</td><td class="verdict-remove">removed</td></tr>
+          <tr><td>claude-code-setup</td><td>plugin</td><td class="num">19</td><td>no</td><td class="num">100</td><td class="verdict-remove">removed</td></tr>
+          <tr><td>skill-creator</td><td>plugin</td><td class="num">0</td><td>no</td><td class="num">86</td><td class="verdict-remove">removed</td></tr>
+          <tr><td>github</td><td>connection</td><td class="num">&mdash;</td><td>392 calls</td><td class="num">deferred</td><td class="verdict-keep">keep</td></tr>
+          <tr><td>home-assistant</td><td>connection</td><td class="num">&mdash;</td><td>209 calls</td><td class="num">deferred</td><td class="verdict-keep">keep</td></tr>
+          <tr><td>aws-cfn / ecs / mcp</td><td>connection</td><td class="num">&mdash;</td><td>no</td><td class="num">deferred</td><td class="verdict-remove">removed</td></tr>
+          <tr><td>shadcn, tanstack, memory</td><td>connection</td><td class="num">&mdash;</td><td>no</td><td class="num">deferred</td><td class="verdict-remove">removed</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="eyebrow">Worth a decision</span>
+      <p><strong>Stripe costs more resident context than everything removed, combined</strong> &mdash; roughly 1,180 est. tokens for a single lifetime use. It survived only because that one use fell inside the window. If Stripe work isn&rsquo;t ongoing, disabling it is the largest win still on the table.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Warnings</span>
+      <h2>Findings without actions</h2>
+    </div>
+    <div class="findings">
+
+      <div class="finding">
+        <span class="num">05</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>One repo&rsquo;s hooks are slow &mdash; not all of them</h3>
+            <span class="chip warn">warning</span>
+          </div>
+          <p>The <code>PostToolUse:Edit</code> chain runs at a <strong>2,124&nbsp;ms median in mylantite</strong> across 625 runs, against <strong>164&nbsp;ms in homeassistant</strong>. Same engine, same three hooks, a thirteenfold gap. It tracks repo scale &mdash; 3,059 tracked files and a 2.1&nbsp;MB memory directory versus 170 files &mdash; but that is correlation, not a profile.</p>
+          <p>An earlier read of this called it kit-wide. It isn&rsquo;t; it is concentrated in one repo, which changes the fix from an engine change to a scaling question.</p>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="num">06</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>Resident context is dominated by two files</h3>
+            <span class="chip good">healthy</span>
+          </div>
+          <p>The skill listing totals roughly 3.0k est. tokens against a ~1% budget &mdash; ample headroom on a 1M-token model, so skill routing is not degrading. <code>CLAUDE.md</code> is 6,053 characters and entirely non-derivable policy: nothing to trim.</p>
+        </div>
+      </div>
+
+      <div class="finding">
+        <span class="num">07</span>
+        <div class="body">
+          <div class="title-row">
+            <h3>The update would not download</h3>
+            <span class="chip crit">blocked</span>
+          </div>
+          <p>Two attempts, both <code>Download timed out: exceeded the total deadline</code>. Still on 2.1.237. The install is intact &mdash; 2.1.234 and 2.1.237 are both present and the launcher resolves correctly &mdash; but a zero-byte <code>2.1.247</code> stub was left behind and survived the retry, so it may be worth deleting before trying again.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <span class="eyebrow">Open</span>
+      <h2>Still yours to do</h2>
+    </div>
+    <ul class="todo">
+      <li>
+        <span class="mark">01</span>
+        <div>
+          <strong>Run <code>/mcp</code> and disconnect six connectors</strong>
+          <p>Gmail, Google Calendar, Google Drive, Expedia, Kiwi.com and lastminute.com &mdash; zero calls in seventeen days. These live on your account rather than in local files, so they can only be removed from your side.</p>
+        </div>
+      </li>
+      <li>
+        <span class="mark">02</span>
+        <div>
+          <strong>Restart the session</strong>
+          <p>Plugin and connection changes are read once at session start.</p>
+        </div>
+      </li>
+      <li>
+        <span class="mark">03</span>
+        <div>
+          <strong>Retry the update on a better connection</strong>
+          <p>Delete the zero-byte stub at <code>~/.local/share/claude/versions/2.1.247</code> first.</p>
+        </div>
+      </li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Token figures are disk-based estimates (characters &divide; 4); <code>/context</code> gives the exact live measurement. Every change described here is reversible &mdash; the plugin and connection toggles flip back, and backups of both edited settings files were kept.</p>
+  </footer>
+
+</div>
