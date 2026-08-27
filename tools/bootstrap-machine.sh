@@ -151,6 +151,10 @@ sys.exit(0)
 PYEOF
 }
 
+verify_gh() {
+  command -v gh >/dev/null 2>&1 || [ -x "$HOME/.local/bin/gh" ]
+}
+
 verify_claude() {
   command -v claude >/dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ] || return 1
   [ -s "$HOME/.claude/.credentials.json" ]
@@ -193,6 +197,29 @@ step "Claude Code login" \
      https://claude.ai/code — then run: claude   (complete the login flow)" \
 verify_claude
 
+step "GitHub CLI (gh)" \
+"   gh is the fallback path for PR and issue work when the GitHub MCP server is
+   not connected — without it, a session that needs to open a PR has neither.
+   No sudo required; ~/.local/bin is already on PATH:
+
+     V=2.98.0   # latest: https://github.com/cli/cli/releases/latest
+     cd \"\$(mktemp -d)\"
+     curl -sSL -o gh.tgz \\
+       \"https://github.com/cli/cli/releases/download/v\$V/gh_\${V}_linux_amd64.tar.gz\"
+     curl -sSL -o sums.txt \\
+       \"https://github.com/cli/cli/releases/download/v\$V/gh_\${V}_checksums.txt\"
+     grep \"gh_\${V}_linux_amd64.tar.gz\" sums.txt | sed \"s|gh_\${V}_linux_amd64.tar.gz|gh.tgz|\" \\
+       | sha256sum -c -            # MUST pass before installing
+     tar xzf gh.tgz && install -m755 gh_\${V}_linux_amd64/bin/gh \"\$HOME/.local/bin/gh\"
+
+   Verify the checksum before installing, and run ONE download at a time — a
+   second curl resuming into the same file produces an oversized, corrupt
+   archive that still looks like a normal failure (2026-08-27).
+
+   Then authenticate. gh can reuse the PAT the machine layer already owns:
+     GH_TOKEN=\"\$(cat ~/.secrets/github-pat)\" gh auth status" \
+verify_gh
+
 step "Register project checkouts" \
 "   Clone your project repos, run each repo's kit install
    (bash $KIT/installer/install.sh <path> <profile>), then register each:
@@ -212,7 +239,7 @@ verify_boot_automation
 echo
 echo "== bootstrap summary =="
 for f in "$BIN/safe-push" "$BIN/weekly-hygiene" "$BIN/pr-comment-poller" \
-         "$HOOKS_MACHINE/guard_protected_branch.py"; do
+         "$BIN/mcp-audit" "$HOOKS_MACHINE/guard_protected_branch.py"; do
   [ -x "$f" ] && ok "$(basename "$f")" || warn "missing: $f"
 done
 crontab -l 2>/dev/null | grep -qF "$BIN/weekly-hygiene" && ok "cron: weekly hygiene" || warn "cron: hygiene missing"

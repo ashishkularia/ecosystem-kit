@@ -1,5 +1,15 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **`gh` is now a machine-layer prerequisite, with a bootstrap
+  step and `verify_gh`.** The GitHub MCP server disconnected repeatedly during a
+  working session, leaving no way to open a PR — three had to be created through
+  a hand-written REST script. `gh` is the fallback, installs without sudo into
+  `~/.local/bin` (already on PATH), and authenticates from the same
+  `~/.secrets/github-pat` the machine tools already own, so it adds no second
+  credential. The step spells out checksum verification and the one-download-at-
+  a-time rule, because a concurrent resume produced an oversized corrupt archive
+  that failed its checksum and read like a network problem.
+
 - 2026-08-27 — **Synced artifacts are now viewable and statically servable.**
   An artifact source is a FRAGMENT by contract — the host supplies
   `<!doctype>/<html>/<body>` at publish time and rejects pages carrying their
