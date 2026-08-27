@@ -32,7 +32,13 @@ The same guarantee holds for non-interactive sessions (`claude -p`, CI, schedule
 
 Artifacts are authored in the session scratchpad, which is wiped when the session ends — so publishing produced a live URL and nothing you could review, diff, or edit later. The `artifact_sync` hook (PostToolUse · Artifact) mirrors every publish into `docs/artifacts/<slug>/`: the **source file verbatim** (the one you edit), a **generated counterpart** in the other format, and `artifact.json` with the live URL. An `INDEX.md` lists them all.
 
-To change an artifact, edit its source file in the repo and republish it with its URL — the live page and the committed copy stay in step. Only one file of the pair is authoritative; the generated one carries a "do not edit" banner, because the kit is stdlib-only and neither conversion direction is faithful.
+To change an artifact, edit its source file in the repo and republish it with its URL — the live page and the committed copy stay in step. Only the source is authoritative; generated files carry a "do not edit" banner, because the kit is stdlib-only and neither conversion direction is faithful.
+
+**Viewing them.** An artifact source is a *fragment* — the host supplies the HTML skeleton at publish time — so it is not openable on its own. Each directory therefore gets a generated `index.html`, and the root gets a gallery, which makes the whole tree a static site with no build step:
+
+```bash
+npx serve docs/artifacts     # or: python3 -m http.server -d docs/artifacts
+```
 
 By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. Configure with the `artifacts` key in `kit.json`.
 

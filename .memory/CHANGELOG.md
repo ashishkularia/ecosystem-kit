@@ -1,5 +1,19 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **Synced artifacts are now viewable and statically servable.**
+  An artifact source is a FRAGMENT by contract — the host supplies
+  `<!doctype>/<html>/<body>` at publish time and rejects pages carrying their
+  own — so `artifact_sync` was storing something no browser renders properly:
+  quirks mode, no viewport meta. Each artifact directory now also gets a
+  generated `index.html` wrapping the fragment in a deliberately minimal shell
+  (the same reset the host applies, so the artifact's own styles and fonts are
+  not fought), and the root gets a generated gallery. That makes the tree a
+  static site with no build step: `npx serve docs/artifacts` serves `/` as the
+  gallery and `/<slug>/` as the artifact. The convention is generalized from
+  homeassistant's `artifacts/build.py` (2026-08-26), which solved the same
+  problem by hand for one repo. Markdown sources no longer emit a redundant
+  `<slug>.html` — their counterpart IS the viewable page. 6 new tests, 198 green.
+
 - 2026-08-27 — **update.sh reports hooks it delivered but could not wire.**
   update.sh ships engine hooks and never edits `settings.json` (project-owned;
   install.sh only writes it when absent), so a hook the kit ADDS landed on disk
