@@ -9,6 +9,18 @@
   credential. The step spells out checksum verification and the one-download-at-
   a-time rule, because a concurrent resume produced an oversized corrupt archive
   that failed its checksum and read like a network problem.
+- 2026-08-27 — **kit-propagate survives a slow network and stops stacking
+  duplicate update PRs.** First real multi-repo run failed two ways. (1) A flat
+  `timeout=300` covered every subprocess including `safe-push`; on a link with a
+  **~13s round-trip to github.com** (measured) the largest repo blew it, and the
+  `TimeoutExpired` escaped as a traceback that killed the whole run — the four
+  repos queued after it were never attempted. Network operations now get their
+  own 1200s budget and a timeout is reported per repo instead of aborting
+  everything. (2) The pending-PR skip was keyed on `chore/kit-update-<kit_head>`,
+  so a single kit commit landing between runs changed the branch name, made the
+  open PR invisible, and produced a SECOND overlapping PR on the same repo —
+  observed on DevContainer after gh landed on kit main mid-propagation. It now
+  skips while ANY `chore/kit-update-*` branch is pending.
 
 - 2026-08-27 — **Synced artifacts are now viewable and statically servable.**
   An artifact source is a FRAGMENT by contract — the host supplies

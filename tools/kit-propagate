@@ -57,8 +57,22 @@ def log(msg):
     print(msg)
 
 
-def run(cmd, cwd=None, check=True):
-    r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=300)
+# Local git work is fast; anything touching the remote is not. On a link with
+# a ~13s round-trip to github.com (measured 2026-08-27), safe-push — which
+# fetches, checks the remote default branch, then pushes — blew the flat 300s
+# budget on the largest repo and took the whole run down with a TimeoutExpired
+# traceback, so the four repos after it were never attempted.
+LOCAL_TIMEOUT = 300
+NETWORK_TIMEOUT = 1200
+
+
+def run(cmd, cwd=None, check=True, timeout=LOCAL_TIMEOUT):
+    try:
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if check:
+            raise RuntimeError(f"{' '.join(cmd)} timed out after {timeout}s")
+        return subprocess.CompletedProcess(cmd, 1, "", f"timed out after {timeout}s")
     if check and r.returncode != 0:
         raise RuntimeError(f"{' '.join(cmd)} failed: {r.stderr.strip()[:300]}")
     return r
@@ -246,9 +260,17 @@ def main():
             continue
 
         branch = f"chore/kit-update-{kit_head}"
-        run(["git", "-C", repo, "fetch", "-q"], check=False)
-        if run(["git", "-C", repo, "rev-parse", "--verify", f"origin/{branch}"], check=False).returncode == 0:
-            print(f"[skip] {name}: {branch} already pushed (pending PR)")
+        run(["git", "-C", repo, "fetch", "-q"], check=False, timeout=NETWORK_TIMEOUT)
+        # Skip while ANY kit-update branch is pending, not just this kit head's.
+        # Keying the check on kit_head meant a single kit commit landing between
+        # runs defeated it: the branch name changed, the open PR was invisible,
+        # and the repo got a SECOND overlapping update PR (2026-08-27,
+        # DevContainer, after gh landed on kit main mid-propagation).
+        pending = run(["git", "-C", repo, "for-each-ref", "--format=%(refname:short)",
+                       "refs/remotes/origin/chore/kit-update-*"], check=False)
+        existing = [ln.strip() for ln in (pending.stdout or "").splitlines() if ln.strip()]
+        if existing:
+            print(f"[skip] {name}: kit update already pending ({existing[0]})")
             continue
         base = default_branch(repo)
         wt = WORKTREES / f"{name}-kitup"
@@ -276,7 +298,7 @@ def main():
             run(["git", "-C", str(wt), "commit", "-q", "-m",
                  f"chore(kit): update from kit {rec} -> {kit_head}\n\nAutomated by kit-propagate; "
                  f"update.sh + policy patches; hook compile+import gate passed."])
-            run([SAFE_PUSH, "-C", str(wt), "-u", "origin", branch])
+            run([SAFE_PUSH, "-C", str(wt), "-u", "origin", branch], timeout=NETWORK_TIMEOUT)
             coords = repo_coords(repo)
             url = create_pr(*coords, branch, base, rec, kit_head, changed) if coords else "?"
             log(f"[PR]   {name}: {url} ({len(changed)} file(s))")
