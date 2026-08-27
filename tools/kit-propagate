@@ -36,7 +36,9 @@ update branch already exists (pending PR), stamp-only diffs (noise).
 import json
 import re
 import subprocess
+import time
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -203,8 +205,31 @@ def create_pr(owner, repo, head, base, old, new, files):
         headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json",
                  "User-Agent": "kit-propagate", "Content-Type": "application/json"},
         method="POST")
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.loads(r.read()).get("html_url", "?")
+    # The branch is ALREADY pushed by the time we get here, so an exception
+    # escaping this function is worse than it looks: the run dies leaving an
+    # orphaned branch with no PR — and because the skip above matches on the
+    # branch prefix, every later run then skips that repo as "pending" for a PR
+    # that does not exist. Observed 2026-08-27: a transient RemoteDisconnected
+    # mid-run left grade5 exactly there. Retry once, then surface the orphan
+    # loudly instead of raising.
+    last = None
+    for attempt in (1, 2):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.loads(r.read()).get("html_url", "?")
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")[:200]
+            if 400 <= e.code < 500 and e.code != 429:
+                raise RuntimeError(f"GitHub rejected the PR ({e.code}): {detail}")
+            last = f"HTTP {e.code}: {detail}"
+        except Exception as e:  # URLError, RemoteDisconnected, socket timeouts
+            last = f"{type(e).__name__}: {e}"
+        if attempt == 1:
+            time.sleep(5)
+    raise RuntimeError(
+        f"branch {head} pushed but PR creation failed ({last}). "
+        f"Open it by hand: gh pr create --repo {owner}/{repo} --head {head} --base {base} "
+        f"— until then this repo is skipped as 'pending' for a PR that does not exist.")
 
 
 def kit_default_branch():
@@ -260,7 +285,15 @@ def main():
             continue
 
         branch = f"chore/kit-update-{kit_head}"
-        run(["git", "-C", repo, "fetch", "-q"], check=False, timeout=NETWORK_TIMEOUT)
+        # --prune is load-bearing, not tidiness. The skip below reads LOCAL
+        # remote-tracking refs, and a plain fetch never deletes the ref for a
+        # branch the remote dropped — which GitHub does on every PR merge.
+        # Without pruning, a repo whose kit-update PR merged keeps a stale
+        # refs/remotes/origin/chore/kit-update-* forever and is skipped
+        # FOREVER: one kit update per repo, then silence. The exact-branch
+        # check this replaced was equally stale but self-healed, because the
+        # branch name changed each time kit main moved.
+        run(["git", "-C", repo, "fetch", "-q", "--prune"], check=False, timeout=NETWORK_TIMEOUT)
         # Skip while ANY kit-update branch is pending, not just this kit head's.
         # Keying the check on kit_head meant a single kit commit landing between
         # runs defeated it: the branch name changed, the open PR was invisible,
