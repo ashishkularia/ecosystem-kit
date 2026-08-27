@@ -1,5 +1,16 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-27 — **update.sh reports hooks it delivered but could not wire.**
+  update.sh ships engine hooks and never edits `settings.json` (project-owned;
+  install.sh only writes it when absent), so a hook the kit ADDS landed on disk
+  unwired: it never fired, and health-check reported `[ERR] wiring drift`.
+  Latent since the wiring convention settled — no new hook had shipped since —
+  and first hit by `artifact_sync`, which would have taken all five repos to an
+  85% health score on their next update. Reports rather than edits, matching
+  install.sh's settings.json behavior, and prints the paste-ready block with the
+  event and matcher read from `templates/settings.json.template`. Verified both
+  directions on a scratch install: ERR before, OK after pasting.
+
 - 2026-08-27 — **update.sh delivers commands and agents again; three commands
   promoted.** `update.sh` refreshed engine + skills only and `install.sh` is
   skip-if-exists, so an IMPROVED kit command could reach no installed repo:
