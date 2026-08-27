@@ -4,10 +4,11 @@
   "title": "Claude Code Checkup",
   "description": "",
   "favicon": "\ud83e\ude7a",
-  "version": "1787797031-6c0b",
+  "version": "1787816343-0cce",
   "source_file": "claude-code-checkup.html",
   "generated_file": "claude-code-checkup.md",
+  "viewable_file": "index.html",
   "source_format": "html",
-  "published_from": "/tmp/claude-1000/-home-ubuntu-ecosystem-kit/601f7d62-c105-43be-8046-f85f37f05600/scratchpad/claude-code-checkup.html",
-  "updated_at": "2026-08-27 12:17:14"
+  "published_from": "/home/ubuntu/ecosystem-kit/docs/artifacts/claude-code-checkup/claude-code-checkup.html",
+  "updated_at": "2026-08-27 17:39:06"
 }
