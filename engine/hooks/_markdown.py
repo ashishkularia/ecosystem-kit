@@ -264,6 +264,69 @@ def md_file_to_html_page(md_text: str, title: str, source_name: str, meta_html: 
     )
 
 
+# A DELIBERATELY MINIMAL shell for wrapping an HTML artifact fragment. It
+# mirrors the reset the artifact host applies and nothing more: the fragment
+# ships its own <style>, fonts and palette, so an opinionated shell (like
+# _HTML_SHELL above) would fight the artifact's own design. Same reasoning as
+# homeassistant's artifacts/build.py, which this generalizes.
+_FRAGMENT_SHELL = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+{banner}
+<style>
+  *,*::before,*::after{{box-sizing:border-box}}
+  body{{margin:0}}
+  img,svg,video{{max-width:100%;height:auto}}
+</style>
+</head>
+<body>
+{body}
+</body>
+</html>
+"""
+
+_TITLE_TAG = re.compile(r"<title>(.*?)</title>", re.S | re.I)
+
+
+def looks_like_full_document(text: str) -> bool:
+    """True when the text already carries its own document skeleton.
+
+    Artifact sources are fragments by contract — the host supplies the skeleton
+    and rejects pages that bring their own. A source that already looks like a
+    full document must not be double-wrapped.
+    """
+    head = text[:8192].lower()
+    return "<!doctype" in head or "<html" in head or "<body" in head
+
+
+def html_fragment_to_page(fragment: str, title: str, source_name: str) -> str:
+    """Wrap an artifact HTML fragment into a standalone, viewable page.
+
+    The stored source stays a fragment because that is what republishing needs;
+    this produces the browser-openable copy. Already-complete documents are
+    returned unchanged rather than nested inside a second <html>.
+    """
+    if looks_like_full_document(fragment):
+        return fragment
+
+    resolved = title
+    match = _TITLE_TAG.search(fragment[:8192])
+    if match and not resolved:
+        resolved = match.group(1).strip()
+    # The fragment carries its own <title>; the shell supplies one, so drop the
+    # inner tag rather than emitting two.
+    body = _TITLE_TAG.sub("", fragment, count=1)
+
+    return _FRAGMENT_SHELL.format(
+        title=html.escape(resolved or source_name),
+        banner=GENERATED_HTML_BANNER.format(source=html.escape(source_name)),
+        body=body,
+    )
+
+
 # ───────────────────────── HTML -> Markdown digest ─────────────────────────
 
 # NOTE: `head` is deliberately NOT here. Skipping it swallowed <title> before

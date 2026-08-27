@@ -141,19 +141,42 @@ artifact is versioned, diffable, reviewable in a PR, and editable in place.
 Layout under `artifacts.dir` (default `docs/artifacts`):
 
 ```
-docs/artifacts/<slug>/<slug>.<ext>   source, VERBATIM — the file a human edits
-docs/artifacts/<slug>/<slug>.<alt>   generated counterpart, banner-marked
+docs/artifacts/<slug>/<slug>.<ext>   source, VERBATIM — publish from this
+docs/artifacts/<slug>/<slug>.md      readable digest (HTML sources only)
+docs/artifacts/<slug>/index.html     generated standalone page — open this
 docs/artifacts/<slug>/artifact.json  id, url, title, description, version
-docs/artifacts/INDEX.md              one row per artifact, rebuilt each publish
+docs/artifacts/index.html            generated gallery
+docs/artifacts/INDEX.md              same, for GitHub / PR review
 ```
 
-**Why both formats.** They do different jobs: the HTML is what you open in a
-browser, the Markdown is what reads and diffs in a PR. Only one is
-authoritative — whichever format was published. The kit is stdlib-only (no
-`markdown`, no `html2text`), so `_markdown.py` hand-rolls both directions and
-neither is faithful: md→html renders a documented subset, html→md is a lossy
-text digest. Generated files therefore carry a "do not edit" banner, and the
-source file is always stored byte-for-byte.
+**Every file has one job.** The **source** is stored byte-for-byte because that
+is what republishing needs. The **digest** is what reads and diffs in a PR. And
+`index.html` is the browser-openable copy, which the source is *not*.
+
+**Why the source alone is not viewable.** An artifact is a FRAGMENT by
+contract: the host supplies `<!doctype>`/`<html>`/`<head>`/`<body>` at publish
+time and rejects pages that bring their own. So the stored source has no
+document skeleton and no viewport meta — a browser renders it in quirks mode.
+`_markdown.html_fragment_to_page` wraps it in a **deliberately minimal** shell
+(the same reset the host applies, nothing more) because the fragment ships its
+own styles, fonts and palette; an opinionated shell would fight the artifact's
+own design. A source that already looks like a full document is returned
+unchanged rather than nested inside a second `<html>`. Convention generalized
+from homeassistant's `artifacts/build.py` (2026-08-26), which solved the same
+problem manually for that repo.
+
+**The tree is a static site as-is.** Every artifact directory has an
+`index.html` and the root has a generated gallery, so `npx serve docs/artifacts`
+(or any static server) needs no build step and no config: `/` is the gallery,
+`/<slug>/` resolves to that artifact's page. Titles and descriptions are
+HTML-escaped into the gallery — they are model- and user-authored text.
+
+**Why both formats.** They do different jobs: HTML is what you open, Markdown is
+what reads and diffs in a PR. Only one is authoritative — whichever format was
+published. The kit is stdlib-only (no `markdown`, no `html2text`), so
+`_markdown.py` hand-rolls both directions and neither is faithful: md→html
+renders a documented subset, html→md is a lossy text digest. Generated files
+carry a "do not edit" banner.
 
 **Idempotency is keyed on `tool_response.artifact_id`**, not the filename. The
 same artifact republishes from the same temp path, and a retitled artifact

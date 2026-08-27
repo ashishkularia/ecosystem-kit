@@ -107,7 +107,10 @@ class PublishGatingTest(SyncTestBase):
         d = os.path.join(self.artifacts_root, "sample-title")
         with open(os.path.join(d, "sample-title.md"), encoding="utf-8") as f:
             self.assertEqual(f.read(), body, "source must be stored byte-for-byte")
-        with open(os.path.join(d, "sample-title.html"), encoding="utf-8") as f:
+        # A markdown source IS the readable form, so its counterpart is the
+        # viewable page (index.html) — see ViewablePageTest. There is no
+        # separate <slug>.html, which would just duplicate it.
+        with open(os.path.join(d, "index.html"), encoding="utf-8") as f:
             html = f.read()
         self.assertIn("<strong>bold</strong>", html)
         self.assertIn("GENERATED", html)
@@ -405,3 +408,80 @@ class CommitScopeTest(SyncTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ViewablePageTest(SyncTestBase):
+    """Every artifact must be openable in a browser and servable statically.
+
+    The stored source is a FRAGMENT by contract (the artifact host supplies
+    <!doctype>/<html>/<body> and rejects pages that bring their own), so the
+    source alone renders in quirks mode with no viewport meta.
+    """
+
+    def test_html_artifact_gets_a_standalone_index_page(self):
+        fragment = '<title>T</title><style>body{color:red}</style><h1>Head</h1><p>Body.</p>'
+        src = self.source("page.html", fragment)
+        self.run_hook(payload(src))
+        d = os.path.join(self.artifacts_root, "sample-title")
+
+        with open(os.path.join(d, "sample-title.html"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), fragment, "source stays a verbatim fragment")
+
+        with open(os.path.join(d, "index.html"), encoding="utf-8") as f:
+            page = f.read()
+        self.assertTrue(page.lstrip().lower().startswith("<!doctype html>"))
+        for required in ("<html", "<head", "<body", 'name="viewport"'):
+            self.assertIn(required, page)
+        self.assertIn("<h1>Head</h1>", page, "fragment content is preserved")
+        self.assertIn("body{color:red}", page, "the artifact's own styles survive")
+        self.assertEqual(page.count("<title>"), 1, "exactly one title, not two")
+
+    def test_markdown_artifact_gets_a_rendered_index_page(self):
+        src = self.source("note.md", "# Hello\n\nSome **bold** text.\n")
+        self.run_hook(payload(src))
+        d = os.path.join(self.artifacts_root, "sample-title")
+        with open(os.path.join(d, "index.html"), encoding="utf-8") as f:
+            page = f.read()
+        self.assertTrue(page.lstrip().lower().startswith("<!doctype html>"))
+        self.assertIn("<strong>bold</strong>", page)
+
+    def test_already_complete_document_is_not_double_wrapped(self):
+        full = "<!doctype html><html><head><title>X</title></head><body><p>hi</p></body></html>"
+        src = self.source("page.html", full)
+        self.run_hook(payload(src))
+        with open(os.path.join(self.artifacts_root, "sample-title", "index.html")) as f:
+            page = f.read()
+        self.assertEqual(page.lower().count("<!doctype"), 1)
+        self.assertEqual(page.lower().count("<html"), 1)
+
+    def test_gallery_is_generated_and_links_each_artifact(self):
+        a = self.source("a.md", "# a\n")
+        b = self.source("b.html", "<title>B</title><p>b</p>")
+        self.run_hook(payload(a, artifact_id="id-a", title="Alpha", url="https://x/a"))
+        self.run_hook(payload(b, artifact_id="id-b", title="Beta", url="https://x/b"))
+
+        with open(os.path.join(self.artifacts_root, "index.html"), encoding="utf-8") as f:
+            gallery = f.read()
+        self.assertTrue(gallery.lstrip().lower().startswith("<!doctype html>"))
+        self.assertIn('href="alpha/"', gallery, "links the directory, so <slug>/ resolves to index.html")
+        self.assertIn('href="beta/"', gallery)
+        self.assertIn("Alpha", gallery)
+        self.assertIn("Beta", gallery)
+
+    def test_gallery_escapes_untrusted_title_text(self):
+        src = self.source("a.md", "# a\n")
+        self.run_hook(payload(src, title="<script>alert(1)</script>", description='"><img onerror=x>'))
+        with open(os.path.join(self.artifacts_root, "index.html"), encoding="utf-8") as f:
+            gallery = f.read()
+        self.assertNotIn("<script>alert(1)</script>", gallery)
+        self.assertNotIn("<img onerror", gallery)
+        self.assertIn("&lt;script&gt;", gallery)
+
+    def test_markdown_source_has_no_redundant_slug_html(self):
+        """A markdown source IS the readable form; its only counterpart is the
+        viewable page, so a separate <slug>.html would just be a duplicate."""
+        src = self.source("note.md", "# x\n")
+        self.run_hook(payload(src))
+        d = os.path.join(self.artifacts_root, "sample-title")
+        self.assertTrue(os.path.isfile(os.path.join(d, "index.html")))
+        self.assertFalse(os.path.isfile(os.path.join(d, "sample-title.html")))
