@@ -85,6 +85,7 @@ The v1 flaw: any advisory hook bug blocked all tools. v2 splits the roster — o
 | `guard_principles` | fail open | advisory by design |
 | `guard_commit_message` | fail open | advisory |
 | `guard_post_test` | fail open | summarizer |
+| `artifact_sync` | fail open | mirroring an artifact must never fail a publish |
 | `tdd_gate` | fail open | even under `tdd: enforce`, a crashed gate shouldn't block edits |
 
 (Note the distinction: fail-open hooks still *block* when they run correctly and find a violation — the table is about crash behavior only.)
@@ -118,6 +119,7 @@ A local `git commit` on a protected branch remains allowed by design — `weekly
 | PostToolUse · Edit\|Write | `docs_contract`, `context_attach`, `guard_principles` |
 | PostToolUse · Read | `context_attach` (domain docs surface on reads too, per its Edit\|Write\|Read contract) |
 | PostToolUse · Bash | `guard_commit_message`, `guard_post_test` |
+| PostToolUse · Artifact | `artifact_sync` |
 | Stop | `docs_contract` |
 
 ### docs_contract (the knowledge-decay stopper)
@@ -128,9 +130,51 @@ A local `git commit` on a protected branch remains allowed by design — `weekly
 
 **Diary scope.** `diary_scope: "branch"` (the default) gives each branch/MR **one** diary — `.memory/diary/YYYY-MM-DD-<branch-slug>.md`, dated when that branch's diary started and reused for the branch's whole life, so a change's discussion and decisions stay together and survive the days it spans. An existing entry for the branch is reused whatever its date prefix; only the first write picks a date. `diary_scope: "daily"` keeps the legacy one-file-per-date behavior, and branch scope falls back to the dated file on a detached HEAD or outside a git repo (a diary keyed on a branch that doesn't exist is worse than a dated one). `docs_contract.py diary-path` resolves the current file so command flows never reimplement the rules.
 
+### artifact_sync (published artifacts become repo artifacts)
+
+Artifacts are authored in the session scratchpad (`/tmp/.../scratchpad/`), which
+is wiped when the session ends. Publishing therefore produced a live URL and
+**nothing on disk** — 37 publishes across two artifacts left zero files behind
+(measured 2026-08-27). This hook mirrors each publish into the repo so an
+artifact is versioned, diffable, reviewable in a PR, and editable in place.
+
+Layout under `artifacts.dir` (default `docs/artifacts`):
+
+```
+docs/artifacts/<slug>/<slug>.<ext>   source, VERBATIM — the file a human edits
+docs/artifacts/<slug>/<slug>.<alt>   generated counterpart, banner-marked
+docs/artifacts/<slug>/artifact.json  id, url, title, description, version
+docs/artifacts/INDEX.md              one row per artifact, rebuilt each publish
+```
+
+**Why both formats.** They do different jobs: the HTML is what you open in a
+browser, the Markdown is what reads and diffs in a PR. Only one is
+authoritative — whichever format was published. The kit is stdlib-only (no
+`markdown`, no `html2text`), so `_markdown.py` hand-rolls both directions and
+neither is faithful: md→html renders a documented subset, html→md is a lossy
+text digest. Generated files therefore carry a "do not edit" banner, and the
+source file is always stored byte-for-byte.
+
+**Idempotency is keyed on `tool_response.artifact_id`**, not the filename. The
+same artifact republishes from the same temp path, and a retitled artifact
+changes slug — so filename keying breaks both ways. A directory whose
+`artifact.json` carries the id is reused and rewritten, making N republishes
+yield one directory. Metadata a republish omits (`description`, `favicon` —
+absent when only `file_path` + `label` are passed) is carried forward rather
+than blanked.
+
+**Commit scoping.** With `artifacts.commit` (default true) the hook stages the
+artifact paths and makes a **pathspec** commit over them, so whatever else sits
+in the index is untouched — a hook firing mid-session must never sweep up
+unrelated work. It refuses on a `protected_branches` name, on a detached HEAD,
+and mid-merge/rebase, and **never pushes**. The staging step is required, not
+optional: on an artifact's first publish every file is untracked and
+`git commit -- <paths>` fails with *"pathspec did not match any file(s) known to
+git"*.
+
 ### Profile-driven behavior
 
-`kit.json` parameterizes the engine per project: `source_patterns` (docs_contract, tdd_gate), `domain_map` (context_attach, once-per-session state in `.memory/cache/`), `branch_types` + `protected_branches` (branch/merge guards), `principles` (guard_principles severity per check, `tdd: enforce` makes tdd_gate exit 2), `diary` + `diary_scope` (diary requirement and whether entries are per-branch or per-date). See `kit.config.example.md` for every key.
+`kit.json` parameterizes the engine per project: `source_patterns` (docs_contract, tdd_gate), `domain_map` (context_attach, once-per-session state in `.memory/cache/`), `branch_types` + `protected_branches` (branch/merge guards), `principles` (guard_principles severity per check, `tdd: enforce` makes tdd_gate exit 2), `diary` + `diary_scope` (diary requirement and whether entries are per-branch or per-date), `artifacts` (artifact_sync destination, commit behavior). See `kit.config.example.md` for every key.
 
 ## 6. Ceremony and gates
 

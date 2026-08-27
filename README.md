@@ -28,6 +28,14 @@ The same guarantee holds for non-interactive sessions (`claude -p`, CI, schedule
 - The engine is stdlib-only Python 3 — no pip, no venv, no network needed to boot.
 - If the hook daemon isn't running, `_client.py` falls back to direct execution; a cold clone still enforces every gate.
 
+## Published artifacts land in the repo
+
+Artifacts are authored in the session scratchpad, which is wiped when the session ends — so publishing produced a live URL and nothing you could review, diff, or edit later. The `artifact_sync` hook (PostToolUse · Artifact) mirrors every publish into `docs/artifacts/<slug>/`: the **source file verbatim** (the one you edit), a **generated counterpart** in the other format, and `artifact.json` with the live URL. An `INDEX.md` lists them all.
+
+To change an artifact, edit its source file in the repo and republish it with its URL — the live page and the committed copy stay in step. Only one file of the pair is authoritative; the generated one carries a "do not edit" banner, because the kit is stdlib-only and neither conversion direction is faithful.
+
+By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. Configure with the `artifacts` key in `kit.json`.
+
 ## The owner guardrail
 
 **Claude never merges or writes to `main`/`master` — anywhere, in any repo.** Only the owner merges. This is enforced fail-closed by `guard_protected_merge` (git merge/rebase into protected branches, `gh pr merge`, push refspecs targeting protected branches, GitHub MCP write tools) and `guard_branch_naming` (protected names are never creatable). `/pr-babysit` shepherds a PR through checks and review comments but stops short of the merge button, always.

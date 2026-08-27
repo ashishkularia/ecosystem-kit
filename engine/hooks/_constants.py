@@ -65,6 +65,15 @@ _KIT_DEFAULTS = {
         "dry_kiss": "advise",
     },
     "file_write_rules": {"blocked": [], "allowed": []},
+    # artifact_sync mirrors every published artifact into the repo. "dir" is
+    # repo-relative; "commit" scopes a pathspec commit to the artifact paths
+    # only (never a push, never on a protected branch).
+    "artifacts": {
+        "enabled": True,
+        "dir": "docs/artifacts",
+        "commit": True,
+        "commit_type": "docs",
+    },
     "diary": True,
     # "branch": one diary per branch/MR (`YYYY-MM-DD-<branch-slug>.md`), so a
     # change's discussion and decisions stay together and survive the days it

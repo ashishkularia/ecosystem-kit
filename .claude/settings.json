@@ -103,6 +103,15 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR/engine/hooks/_client.py\" guard_post_test"
           }
         ]
+      },
+      {
+        "matcher": "Artifact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/engine/hooks/_client.py\" artifact_sync"
+          }
+        ]
       }
     ],
     "Stop": [
