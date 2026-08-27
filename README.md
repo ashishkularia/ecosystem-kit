@@ -6,8 +6,8 @@ One SDLC ecosystem, installed **by copy** into every project repo (mylantite, gr
 
 | Layer | Lives at | Owned by | Contents |
 |-------|----------|----------|----------|
-| **Machinery (kit-owned)** | `<repo>/.claude/hooks/`, `skills/` | the kit — refreshed by `update.sh` | hook engine + skills |
-| **Machinery (kit-seeded)** | `<repo>/.claude/` | the project after install — `update.sh` never touches these | `commands/`, `agents/`, `settings.json` wiring (skip-if-exists at install), `kit.json` profile (seeded once, project-owned) |
+| **Machinery (kit-owned)** | `<repo>/.claude/hooks/`, `skills/`, `scripts/` | the kit — refreshed by `update.sh` | hook engine, skills, health-check |
+| **Machinery (kit-seeded)** | `<repo>/.claude/` | the project after install — `update.sh` refreshes only what the project has NOT edited | `commands/`, `agents/`, `settings.json` wiring (skip-if-exists at install), `kit.json` profile (seeded once, project-owned) |
 | **Knowledge** | `<repo>/.memory/` | the project (never touched by updates) | STATE, DECISIONS, ISSUES, IDEAS, GOTCHAS, CONVENTIONS, VERIFY, CHANGELOG, DOCS-CHANGELOG, `contexts/`, `references/`, `diary/`, `auto/`, `cache/` |
 | **Policy** | `<repo>/CLAUDE.md` | the project | the auto-loaded durable-policy file; short, and points into `.memory/` |
 
@@ -48,7 +48,7 @@ Idempotent. Refuses non-git targets. Copies the engine (overwrite OK) and comman
 installer/update.sh <TARGET_DIR>
 ```
 
-Refreshes **engine + skills only** — never `.memory/`, never `kit.json` — and shows what changed. From inside a project, `/kit-update` pulls the kit repo, runs `update.sh`, and reviews the diff.
+Refreshes **engine, skills, scripts** — plus any command or agent still byte-identical to the kit template it was installed from, so kit improvements actually reach installed repos. Anything the project edited is reported `KEPT` and left alone; never `.memory/`, never `kit.json`, never `settings*.json`. Shows exactly what changed. From inside a project, `/kit-update` pulls the kit repo, runs `update.sh`, and reviews the diff.
 
 ## Self-improvement loop
 
@@ -62,7 +62,7 @@ templates/             memory roster, settings, CLAUDE.md, commands/, agents/, s
 profiles/              per-project kit.json seeds (mylantite, grade5, meritick, homelab, devcontainer)
 installer/             install.sh, update.sh
 scripts/               health-check.sh
-tools/                 machine layer: safe-push, weekly-hygiene, pr-comment-poller,
+tools/                 machine layer: safe-push, weekly-hygiene, pr-comment-poller, mcp-audit,
                        guard_protected_branch.py, bootstrap-machine.sh (deploys it all)
 docs/ARCHITECTURE.md   how it all fits together
 kit.config.example.json / .md   full schema example + key-by-key reference
