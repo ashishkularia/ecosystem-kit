@@ -14,6 +14,18 @@
   meritick runs the same stack today). New machine tool `tools/mcp-audit`
   reports MCP servers with zero calls across registered repos — nine on this
   machine, eight of them in all five repos.
+- 2026-08-27 — **Published artifacts now land in the repo (`artifact_sync`).**
+  Artifacts are authored in the session scratchpad, which is wiped when the
+  session ends: 37 publishes across two artifacts (measured across all
+  transcripts) left zero files on disk. New PostToolUse:Artifact hook mirrors
+  each publish into `docs/artifacts/<slug>/` — source file verbatim, a
+  generated counterpart in the other format (banner-marked), `artifact.json`
+  with the live URL, and a rebuilt `INDEX.md`. Idempotent on the stable
+  `artifact_id`, so N republishes yield one directory; metadata a republish
+  omits is carried forward rather than blanked. Commits are pathspec-scoped to
+  the artifact paths, refuse on a protected branch, and never push. New
+  `artifacts` key in `kit.json`; `_markdown.py` carries both (deliberately
+  limited, stdlib-only) conversion directions. 27 tests.
 
 - 2026-08-03 — **PR replies go in-thread, and addressed threads get resolved**
   (owner rule). The poller's prompt said only "reply to each addressed thread"

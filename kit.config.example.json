@@ -3,16 +3,50 @@
   "project": "example-app",
   "stack": "laravel-react",
   "_note": "Free-text annotation. The engine ignores this key; use it for owner directives and repo quirks that must travel with the profile.",
-  "protected_branches": ["main", "master"],
-  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "protected_branches": [
+    "main",
+    "master"
+  ],
+  "branch_types": [
+    "feature",
+    "fix",
+    "hotfix",
+    "bugfix",
+    "chore",
+    "docs",
+    "refactor",
+    "test",
+    "revert"
+  ],
   "merge_is_deploy": true,
   "ceremony": {
     "default": "standard",
     "levels": {
-      "express": ["G1"],
-      "standard": ["G1", "G3", "G4", "G6"],
-      "full": ["G1", "G2", "G3", "G4", "G5", "G6"],
-      "critical": ["G1", "G2", "G3", "G4", "G5", "G6"]
+      "express": [
+        "G1"
+      ],
+      "standard": [
+        "G1",
+        "G3",
+        "G4",
+        "G6"
+      ],
+      "full": [
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G6"
+      ],
+      "critical": [
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G6"
+      ]
     }
   },
   "gates": {
@@ -48,7 +82,7 @@
     },
     "G6": {
       "name": "Accessibility",
-      "desc": "WCAG 2.1 AA on every user-facing change: semantic elements, keyboard operability with visible focus, labelled inputs, AA contrast, honest alt text, announced dynamic updates. FAIL on any serious/critical automated finding or unmet reviewer-checklist item. Changes with no user-facing surface record N/A with one line of justification — never silently skipped.",
+      "desc": "WCAG 2.1 AA on every user-facing change: semantic elements, keyboard operability with visible focus, labelled inputs, AA contrast, honest alt text, announced dynamic updates. FAIL on any serious/critical automated finding or unmet reviewer-checklist item. Changes with no user-facing surface record N/A with one line of justification \u2014 never silently skipped.",
       "commands": [
         "docker exec example_app npx eslint resources/js --max-warnings 0",
         "docker exec example_app npx axe http://localhost --exit"
@@ -59,10 +93,18 @@
     "app": "example_app"
   },
   "quality_commands": {
-    "format": ["docker exec example_app ./vendor/bin/pint"],
-    "lint": ["docker exec example_app npx eslint ."],
-    "typecheck": ["docker exec example_app npx tsc --noEmit"],
-    "test": ["docker exec example_app php artisan test"]
+    "format": [
+      "docker exec example_app ./vendor/bin/pint"
+    ],
+    "lint": [
+      "docker exec example_app npx eslint ."
+    ],
+    "typecheck": [
+      "docker exec example_app npx tsc --noEmit"
+    ],
+    "test": [
+      "docker exec example_app php artisan test"
+    ]
   },
   "source_patterns": [
     "^app/.*\\.php$",
@@ -71,7 +113,9 @@
   "domain_map": [
     {
       "pattern": "(app/Policies/|app/Models/(Role|Permission)\\.php)",
-      "docs": [".memory/contexts/authorization.md"]
+      "docs": [
+        ".memory/contexts/authorization.md"
+      ]
     }
   ],
   "always_load": [
@@ -89,6 +133,12 @@
   "file_write_rules": {
     "blocked": [],
     "allowed": []
+  },
+  "artifacts": {
+    "enabled": true,
+    "dir": "docs/artifacts",
+    "commit": true,
+    "commit_type": "docs"
   },
   "diary": true,
   "diary_scope": "branch"
