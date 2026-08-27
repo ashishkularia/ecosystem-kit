@@ -56,7 +56,7 @@ Idempotent. Refuses non-git targets. Copies the engine (overwrite OK) and comman
 installer/update.sh <TARGET_DIR>
 ```
 
-Refreshes **engine, skills, scripts** — plus any command or agent still byte-identical to the kit template it was installed from, so kit improvements actually reach installed repos. Anything the project edited is reported `KEPT` and left alone; never `.memory/`, never `kit.json`, never `settings*.json`. Shows exactly what changed. From inside a project, `/kit-update` pulls the kit repo, runs `update.sh`, and reviews the diff.
+Refreshes **engine, skills, scripts** — plus any command or agent still byte-identical to the kit template it was installed from, so kit improvements actually reach installed repos. Anything the project edited is reported `KEPT` and left alone; never `.memory/`, never `kit.json`, never `settings*.json`. Shows exactly what changed. If the kit has added a NEW hook, `settings.json` is project-owned and is never edited — so update.sh reports the unwired hook and prints the exact block to paste, rather than leaving it silently inert. From inside a project, `/kit-update` pulls the kit repo, runs `update.sh`, and reviews the diff.
 
 ## Self-improvement loop
 

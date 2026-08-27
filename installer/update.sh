@@ -185,6 +185,91 @@ else
   echo "  (kit ships no skill templates)"
 fi
 
+# ── Wiring drift: hooks delivered but not wired ─────────────────────
+# update.sh ships engine hooks but never edits settings.json (project-owned;
+# install.sh likewise only writes it when absent). So a hook the kit ADDS lands
+# on disk unwired: it never fires, and health-check reports
+#   [ERR] wiring drift: hook modules on disk but not wired: <name>
+# Latent since the wiring convention settled, and first hit by artifact_sync
+# (2026-08-27) — the first new hook shipped since.
+#
+# Consistent with install.sh's settings.json behavior, this REPORTS and prints
+# the exact block to paste rather than editing a project-owned file.
+echo ""
+echo "Hook wiring:"
+python3 - "$CLAUDE_DIR/settings.json" "$CLAUDE_DIR/hooks" "$KIT_ROOT/templates/settings.json.template" <<'PYEOF'
+import json, os, sys, glob
+
+settings_path, hooks_dir, template_path = sys.argv[1:4]
+
+
+def wired_names(path):
+    """Hook names wired in a settings file: the last whitespace token of each
+    hook command (`... _client.py session_boot` -> "session_boot")."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    names = set()
+    for blocks in (data.get("hooks") or {}).values():
+        for block in blocks or []:
+            for hook in block.get("hooks") or []:
+                command = (hook.get("command") or "").split()
+                if command:
+                    names.add(command[-1])
+    return names
+
+
+wired = wired_names(settings_path)
+if wired is None:
+    print("  WARN     could not read %s — skipping wiring check" % settings_path)
+    raise SystemExit(0)
+
+on_disk = {
+    os.path.basename(p)[:-3]
+    for p in glob.glob(os.path.join(hooks_dir, "*.py"))
+    if not os.path.basename(p).startswith("_")
+}
+missing = sorted(on_disk - wired)
+if not missing:
+    print("  OK       every delivered hook is wired in settings.json")
+    raise SystemExit(0)
+
+# The template is the source of truth for WHERE each hook belongs.
+try:
+    with open(template_path, encoding="utf-8") as f:
+        template = json.load(f).get("hooks") or {}
+except (OSError, ValueError):
+    template = {}
+
+print("  ACTION   %d hook(s) delivered but NOT wired — they will not fire:" % len(missing))
+for name in missing:
+    print("             - %s" % name)
+print("")
+print("  Add these to %s (hooks -> event), then restart the session:" % settings_path)
+for name in missing:
+    placed = False
+    for event, blocks in template.items():
+        for block in blocks or []:
+            commands = [(h.get("command") or "") for h in block.get("hooks") or []]
+            if not any(c.split() and c.split()[-1] == name for c in commands):
+                continue
+            entry = {"hooks": [{"type": "command", "command": c}
+                               for c in commands if c.split() and c.split()[-1] == name]}
+            if block.get("matcher"):
+                entry = {"matcher": block["matcher"], **entry}
+            print("")
+            print('  "%s": [' % event)
+            for line in json.dumps(entry, indent=2).splitlines():
+                print("    " + line)
+            print("  ]")
+            placed = True
+    if not placed:
+        print("")
+        print("  %s: not present in the kit template either — wire it by hand" % name)
+PYEOF
+
 # ── Commands and agents refresh (uncustomized only) ─────────────────
 for pair in "commands:.claude/commands" "agents:.claude/agents"; do
   kind="${pair%%:*}"
