@@ -1,5 +1,18 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-28 — **artifact_sync reports when its output is gitignored instead of
+  claiming success.** An empty `git status` over the artifact paths means either
+  "nothing changed" or "git cannot see these files" — identical output, opposite
+  meanings, and the hook reported the benign one for both. DevContainer ignores
+  everything by default (`.gitignore` line 1 is `*`), so the hook wrote
+  `docs/artifacts/`, said "mirrored into the repo", and git discarded it: the
+  files existed locally and would have vanished on a fresh clone. Now
+  disambiguated with `git check-ignore -q` (which exits 1 on a negation match,
+  so negated paths are correctly read as trackable) and reported as
+  `NOT TRACKED` with what is actually lost and how to fix it. 3 new tests,
+  208 green; verified end to end against a scratch repo reproducing
+  DevContainer's exact .gitignore.
+
 - 2026-08-27 — **Published artifacts now reach their host automatically
   (`artifacts.deploy_command`).** `artifact_sync` made artifacts durable but not
   reachable: the kularia homelab serves them at `artifacts.kularia.net/<repo>/`

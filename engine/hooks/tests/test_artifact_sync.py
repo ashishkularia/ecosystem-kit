@@ -539,3 +539,64 @@ class DeployCommandTest(SyncTestBase):
         d = os.path.join(self.artifacts_root, "sample-title")
         self.assertTrue(os.path.isfile(os.path.join(d, "sample-title.md")))
         self.assertTrue(os.path.isfile(os.path.join(d, "index.html")))
+
+
+class GitignoredOutputTest(SyncTestBase):
+    """A write that git ignores is not durability, and must not read as success.
+
+    DevContainer ignores everything by default, so artifact_sync wrote
+    docs/artifacts/, reported "mirrored into the repo", and git discarded it —
+    the files existed locally and would vanish on a fresh clone (2026-08-28).
+    """
+
+    def setUp(self):
+        super().setUp()
+        MOD.commit = self._orig_commit          # these tests are about commit()
+        self._orig_git = MOD.git
+
+    def _git(self, ignored_paths, status_out=""):
+        class R:
+            def __init__(self, out="", code=0):
+                self.stdout, self.stderr, self.returncode = out, "", code
+
+        def fake(args, cwd):
+            if args[:1] == ["rev-parse"] and "--is-inside-work-tree" in args:
+                return R("true")
+            if args[:1] == ["rev-parse"]:
+                return R("feature/x")
+            if args[:1] == ["status"]:
+                return R(status_out)
+            if args[:1] == ["check-ignore"]:
+                target = args[-1]
+                return R(code=0 if target in ignored_paths else 1)
+            return R("")
+        return fake
+
+    def test_ignored_output_is_reported_not_called_success(self):
+        MOD.git = self._git({"docs/artifacts/x"})
+        self.addCleanup(setattr, MOD, "git", self._orig_git)
+        status = MOD.commit(["docs/artifacts/x", "docs/artifacts/INDEX.md"],
+                            "m", {"commit": True, "commit_type": "docs"})
+        self.assertIn("NOT TRACKED", status)
+        self.assertIn("gitignored", status)
+        self.assertIn("fresh clone", status, "must say what is actually lost")
+
+    def test_genuinely_unchanged_still_reads_as_no_change(self):
+        """The same empty status must NOT be misreported as ignored."""
+        MOD.git = self._git(set())
+        self.addCleanup(setattr, MOD, "git", self._orig_git)
+        status = MOD.commit(["docs/artifacts/x"], "m",
+                            {"commit": True, "commit_type": "docs"})
+        self.assertEqual(status, "no change to commit")
+
+    def test_check_ignore_failure_does_not_claim_ignored(self):
+        """If git cannot answer, fall back to the benign reading."""
+        def fake(args, cwd):
+            if args[:1] == ["check-ignore"]:
+                return None                      # git unavailable
+            class R:
+                stdout, stderr, returncode = ("true" if "--is-inside-work-tree" in args else ""), "", 0
+            return R()
+        MOD.git = fake
+        self.addCleanup(setattr, MOD, "git", self._orig_git)
+        self.assertFalse(MOD.gitignored("docs/artifacts/x"))
