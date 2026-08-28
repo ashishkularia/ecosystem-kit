@@ -276,6 +276,24 @@ def git(args, cwd):
         return None
 
 
+def gitignored(path):
+    """True when git would ignore `path`, so writing there is invisible.
+
+    Mirroring reports success on a successful WRITE, which is not the same as
+    the file being kept: DevContainer ignores everything by default
+    (`.gitignore` line 1 is `*`, with explicit un-ignores), so artifact_sync
+    wrote docs/artifacts/, said "mirrored into the repo", and git discarded all
+    of it. The files existed locally and would have vanished on a fresh clone
+    (observed 2026-08-28). A hook whose whole purpose is durability must not
+    call that success.
+
+    `check-ignore -q` exits 0 when ignored and 1 when not — including when the
+    match is a NEGATION pattern, which is what makes it safe to trust here.
+    """
+    r = git(["check-ignore", "-q", "--", path], PROJECT_ROOT)
+    return r is not None and r.returncode == 0
+
+
 def commit(paths, message, conf):
     """Commit ONLY `paths`. Returns a status string for the report.
 
@@ -306,6 +324,15 @@ def commit(paths, message, conf):
 
     status = git(["status", "--porcelain", "--"] + paths, PROJECT_ROOT)
     if status is not None and status.returncode == 0 and not status.stdout.strip():
+        # An empty status means either "nothing changed" or "git cannot see
+        # these files at all". Those look identical here and could not differ
+        # more, so name the second one.
+        ignored = [p for p in paths if gitignored(p)]
+        if ignored:
+            return ("NOT TRACKED — %s is gitignored, so the mirror exists only on "
+                    "this machine and disappears on a fresh clone. Un-ignore it "
+                    "(a deny-by-default .gitignore needs an explicit `!` rule) "
+                    "or point artifacts.dir somewhere tracked." % ignored[0])
         return "no change to commit"
 
     # `git commit -- <paths>` is a partial commit over paths git already KNOWS;

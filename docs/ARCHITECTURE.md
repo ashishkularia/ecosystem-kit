@@ -165,6 +165,15 @@ unchanged rather than nested inside a second `<html>`. Convention generalized
 from homeassistant's `artifacts/build.py` (2026-08-26), which solved the same
 problem manually for that repo.
 
+**A write git ignores is not durability.** An empty `git status` over the
+artifact paths means either "nothing changed" or "git cannot see these files at
+all" — identical output, opposite meanings. `artifact_sync` distinguishes them
+with `git check-ignore -q` and reports `NOT TRACKED` for the second, because a
+hook whose whole purpose is durability must not call an invisible write a
+success. Found on DevContainer, whose `.gitignore` line 1 is `*` with explicit
+un-ignores: the hook wrote `docs/artifacts/`, said "mirrored into the repo", and
+git discarded all of it — present locally, gone on a fresh clone.
+
 **Reaching its host.** Mirroring makes an artifact durable, not *reachable*. A
 repo that serves `docs/artifacts/` somewhere would otherwise need a human to
 remember a second command after every publish — the kind of step that silently
