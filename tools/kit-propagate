@@ -331,10 +331,28 @@ def main():
             run(["git", "-C", str(wt), "commit", "-q", "-m",
                  f"chore(kit): update from kit {rec} -> {kit_head}\n\nAutomated by kit-propagate; "
                  f"update.sh + policy patches; hook compile+import gate passed."])
-            run([SAFE_PUSH, "-C", str(wt), "-u", "origin", branch], timeout=NETWORK_TIMEOUT)
+            pushed = run([SAFE_PUSH, "-C", str(wt), "-u", "origin", branch],
+                         check=False, timeout=NETWORK_TIMEOUT)
+            if pushed is None or pushed.returncode != 0:
+                # A repo can refuse its own push — mylantite runs its full test
+                # suite as a pre-push gate, and that suite is intermittently
+                # red. That is this repo's business, not a reason to abandon
+                # the repos queued behind it.
+                detail = (pushed.stderr or pushed.stdout or "").strip().splitlines() if pushed else []
+                log(f"[FAIL] {name}: push refused — {detail[-1] if detail else 'no output'}")
+                continue
             coords = repo_coords(repo)
             url = create_pr(*coords, branch, base, rec, kit_head, changed) if coords else "?"
             log(f"[PR]   {name}: {url} ({len(changed)} file(s))")
+        except Exception as e:
+            # Belt and braces. Every step above that can fail is handled, but a
+            # NEW step added later must not be able to take the whole run down:
+            # one repo's problem is one repo's problem. #31 claimed to fix this
+            # by turning a TimeoutExpired into a RuntimeError — which is still
+            # fatal under check=True, so the run kept dying (2026-08-29,
+            # mylantite, taking grade5/meritick/homelab with it).
+            log(f"[FAIL] {name}: {type(e).__name__}: {str(e)[:200]}")
+            continue
         finally:
             run(["git", "-C", repo, "worktree", "remove", "--force", str(wt)], check=False)
             # Drop the transient local branch too — origin keeps it while a PR is
