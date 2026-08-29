@@ -59,6 +59,7 @@ from _markdown import (
 )
 
 INDEX_NAME = "INDEX.md"
+GALLERY_NAME = "index.html"
 META_NAME = "artifact.json"
 MAX_SLUG = 60
 GIT_TIMEOUT = 20
@@ -509,14 +510,24 @@ def main():
         written.append(META_NAME)
 
     index_path = os.path.join(root, INDEX_NAME)
+    gallery_path = os.path.join(root, GALLERY_NAME)
     write_text(index_path, build_index(root, conf["dir"]))
-    write_text(os.path.join(root, "index.html"), build_gallery(root))
+    write_text(gallery_path, build_gallery(root))
 
-    rel_target = os.path.relpath(target, PROJECT_ROOT).replace(os.sep, "/")
-    rel_index = os.path.relpath(index_path, PROJECT_ROOT).replace(os.sep, "/")
+    def rel(path):
+        return os.path.relpath(path, PROJECT_ROOT).replace(os.sep, "/")
+
+    rel_target = rel(target)
+    # Every generated file must be in the commit, not just the ones we happen
+    # to remember. The gallery was written and then left out of this list, so
+    # it never entered git — invisible because the repos that DO track it got
+    # it from a hand-run `git add`, never from the hook. meritick was the first
+    # repo where the hook ran unassisted, and there the file that makes the
+    # tree servable was the one file missing (2026-08-29).
+    commit_paths = [rel_target, rel(index_path), rel(gallery_path)]
     verb = "update" if response.get("updated") else "add"
     status = commit(
-        [rel_target, rel_index],
+        commit_paths,
         "%s(artifact): %s %s" % (conf["commit_type"], verb, slug),
         conf,
     )

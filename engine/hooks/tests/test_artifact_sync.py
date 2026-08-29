@@ -600,3 +600,45 @@ class GitignoredOutputTest(SyncTestBase):
         MOD.git = fake
         self.addCleanup(setattr, MOD, "git", self._orig_git)
         self.assertFalse(MOD.gitignored("docs/artifacts/x"))
+
+
+class GalleryIsCommittedTest(SyncTestBase):
+    """Every generated file must reach the commit, not just the remembered ones.
+
+    The root gallery (docs/artifacts/index.html) was written and then omitted
+    from the commit pathspec, so it never entered git. Invisible because the
+    repos that DO track it got it from a hand-run `git add`; meritick was the
+    first repo where the hook ran unassisted, and there the one file that makes
+    the tree servable was the one file missing (2026-08-29).
+    """
+
+    def test_commit_pathspec_includes_the_gallery(self):
+        seen = {}
+
+        def fake_commit(paths, message, conf):
+            seen["paths"] = list(paths)
+            return "committed on 'test'"
+
+        MOD.commit = fake_commit
+        src = self.source("note.md", "# x\n")
+        self.run_hook(payload(src))
+
+        paths = seen["paths"]
+        self.assertIn("docs/artifacts/index.html", paths, "the gallery must be committed")
+        self.assertIn("docs/artifacts/INDEX.md", paths)
+        self.assertIn("docs/artifacts/sample-title", paths)
+
+    def test_every_written_file_is_under_a_committed_path(self):
+        """Guards the general rule, not just today's missing file."""
+        seen = {}
+        MOD.commit = lambda paths, message, conf: seen.setdefault("paths", list(paths)) or "ok"
+        src = self.source("page.html", "<title>T</title><p>hi</p>")
+        self.run_hook(payload(src))
+
+        committed = seen["paths"]
+        root = self.artifacts_root
+        for dirpath, _dirs, files in os.walk(root):
+            for f in files:
+                rel = os.path.relpath(os.path.join(dirpath, f), self.repo).replace(os.sep, "/")
+                covered = any(rel == c or rel.startswith(c.rstrip("/") + "/") for c in committed)
+                self.assertTrue(covered, "written but never committed: %s" % rel)
