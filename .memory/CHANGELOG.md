@@ -1,5 +1,19 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-29 — **Append-only ledgers get the union merge driver, kit-wide.** Owner
+  asked why CHANGELOG conflicts in every MR. Cause is the format, not the merge
+  strategy: the docs contract requires a CHANGELOG line on every substantive
+  change and the file is newest-first, so concurrent branches always insert at
+  the same line. Verified in a controlled test that BOTH merge and rebase
+  conflict — correcting an earlier claim in this session that it was
+  rebase-specific — and that `merge=union` resolves it, keeping both entries.
+  New `templates/gitattributes.snippet`, appended by `install.sh` and by a new
+  `kit-propagate` policy patch (install runs once; every existing repo predates
+  this). Scoped to CHANGELOG, DOCS-CHANGELOG, DECISIONS and diary — NOT to
+  ISSUES/IDEAS/VERIFY, which are checkbox queues edited in place where union
+  would duplicate rather than conflict. Verified end to end: a two-branch test
+  merged the changelog cleanly while ISSUES still conflicted.
+
 - 2026-08-29 — **pr-rebase waits for GitHub to compute mergeability instead of
   guessing.** Owner reported the conflict resolver "runs sometimes and sometimes
   it doesn't". Cause: GitHub computes `mergeable_state` ASYNCHRONOUSLY — a GET

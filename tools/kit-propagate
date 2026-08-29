@@ -122,6 +122,38 @@ def hooks_gate(wt):
     return True
 
 
+def patch_gitattributes(wt):
+    """Append the kit's union-merge lines to .gitattributes if missing.
+
+    install.sh does this too, but it runs once per repo — every repo installed
+    before this existed would never get it. The docs contract guarantees every
+    substantive change touches CHANGELOG.md, and it is newest-first, so
+    concurrent branches always insert at the same line and always conflict.
+
+    Matches on the PATH only, so a repo that deliberately set its own driver for
+    one of these keeps it rather than gaining a second contradictory line.
+    """
+    snippet = KIT / "templates" / "gitattributes.snippet"
+    if not snippet.is_file():
+        return []
+    target = Path(wt) / ".gitattributes"
+    existing = target.read_text().splitlines() if target.is_file() else []
+    have = {ln.split()[0] for ln in existing if ln.strip() and not ln.startswith("#")}
+
+    added = []
+    for line in snippet.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        path_only = line.split()[0]
+        if path_only not in have:
+            existing.append(line)
+            added.append(path_only)
+    if added:
+        target.write_text("\n".join(existing).rstrip("\n") + "\n")
+    return added
+
+
 def patch_attribution(wt):
     p = Path(wt) / ".claude" / "settings.json"
     if not p.is_file():
@@ -318,6 +350,9 @@ def main():
             wired = patch_hook_wiring(wt)
             if wired:
                 log(f"[wire] {name}: added hook wiring {', '.join(wired)}")
+            attrs = patch_gitattributes(wt)
+            if attrs:
+                log(f"[attr] {name}: union merge for {', '.join(attrs)}")
             if not hooks_gate(wt):
                 log(f"[FAIL] {name}: hook gate failed — project-local engine additions need a "
                     f"manual merge with the kit engine; NO PR opened")
