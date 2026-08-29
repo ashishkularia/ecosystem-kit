@@ -1,5 +1,18 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-29 — **pr-rebase waits for GitHub to compute mergeability instead of
+  guessing.** Owner reported the conflict resolver "runs sometimes and sometimes
+  it doesn't". Cause: GitHub computes `mergeable_state` ASYNCHRONOUSLY — a GET
+  requests the computation and returns `unknown` until it finishes — and the
+  detector treated `unknown` as "no conflict" and moved on. The bias is the
+  worst possible: the PRs most likely to be conflicted are the ones most
+  recently pushed, which are exactly the ones answered `unknown`. Now polls
+  until the state settles (4 attempts, 3s apart, no extra calls when it is
+  already settled), and a still-unknown PR is LOGGED and skipped rather than
+  silently read as clean. Ruled out the other candidate — the
+  attempted-once state key — by checking every entry: all 12 are closed PRs,
+  none stuck.
+
 - 2026-08-29 — **One repo can no longer kill a propagation run — for real this
   time.** #31 claimed to fix this by converting `TimeoutExpired` into a
   `RuntimeError`, but that is still fatal under `check=True`, which the push call
