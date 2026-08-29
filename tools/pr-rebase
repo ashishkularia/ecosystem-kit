@@ -25,6 +25,7 @@ import json
 import re
 import secrets
 import subprocess
+import time
 import sys
 import urllib.request
 from datetime import datetime, timezone
@@ -92,6 +93,30 @@ def api(tok, path):
         return json.loads(r.read())
 
 
+def pr_with_mergeable_state(tok, owner, repo, num, attempts=4, delay=3):
+    """Fetch a PR, waiting for GitHub to finish computing mergeable_state.
+
+    GitHub computes mergeability ASYNCHRONOUSLY. A GET requests the computation
+    and, until it finishes, returns `mergeable: null` / `mergeable_state:
+    "unknown"` — so a single GET is a coin flip on a PR that was pushed or
+    rebased recently. The old code treated "unknown" as "no conflict" and moved
+    on, which is why the resolver appeared to run only sometimes: the PRs most
+    likely to be conflicted are also the ones most recently pushed, and so the
+    likeliest to be answered "unknown".
+
+    Poll until it settles. Still "unknown" after `attempts` is reported by the
+    caller rather than silently read as clean.
+    """
+    pr = None
+    for i in range(attempts):
+        pr = api(tok, f"/repos/{owner}/{repo}/pulls/{num}")
+        if pr.get("mergeable") is not None and pr.get("mergeable_state") not in (None, "unknown"):
+            return pr
+        if i < attempts - 1:
+            time.sleep(delay)
+    return pr
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "run"
     if not TOKEN_FILE.exists():
@@ -119,10 +144,15 @@ def main():
                 continue
             num = stub["number"]
             try:
-                pr = api(tok, f"/repos/{owner}/{repo}/pulls/{num}")  # single GET populates mergeable_state
+                pr = pr_with_mergeable_state(tok, owner, repo, num)
             except Exception as e:
                 log(f"{owner}/{repo}#{num}: get error {e}"); continue
             ms = pr.get("mergeable_state")
+            if ms in (None, "unknown"):
+                # Say so rather than reading it as clean: an unresolved state is
+                # the one case where skipping might be hiding a real conflict.
+                log(f"{owner}/{repo}#{num}: mergeable_state still unknown after polling — skipped this run")
+                continue
             head = pr.get("head", {})
             base = pr.get("base", {})
             # same-repo head only (never touch fork branches)
