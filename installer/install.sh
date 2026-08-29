@@ -296,11 +296,25 @@ if [ -f "$ATTRS" ]; then
     # Match on the PATH only: a repo that already set its own driver for one of
     # these keeps it, instead of gaining a second contradictory line.
     path_only="${line%% *}"
-    if ! grep -qE "^${path_only}[[:space:]]" "$TARGET_DIR/.gitattributes"; then
+    # Exact first-field compare, NOT grep -E: these paths are globs, and
+    # `.memory/diary/*.md` as a regex reads "/" zero-or-more times, so the line
+    # never matched itself and every re-install appended another copy
+    # (found 2026-08-30 by running install.sh twice against a scratch repo).
+    if ! awk -v p="$path_only" '$1==p {found=1} END{exit !found}' "$TARGET_DIR/.gitattributes"; then
       printf '%s\n' "$line" >> "$TARGET_DIR/.gitattributes"
       a_added=$((a_added+1))
     fi
   done < "$ATTRS"
+  # A deny-by-default .gitignore ("*" then an explicit "!" allowlist) ignores the
+  # file we just wrote, so it would sit untracked forever and the union driver
+  # would never apply. Un-ignore it explicitly rather than forcing it into the
+  # index: the allowlist is the repo's stated intent.
+  if git -C "$TARGET_DIR" check-ignore -q -- .gitattributes 2>/dev/null; then
+    if ! grep -qxF '!.gitattributes' "$TARGET_DIR/.gitignore" 2>/dev/null; then
+      printf '%s\n' '!.gitattributes' >> "$TARGET_DIR/.gitignore"
+      echo "  .gitignore: un-ignored .gitattributes (deny-by-default repo)"
+    fi
+  fi
   echo "  .gitattributes: $a_added line(s) appended"
 else
   echo "  WARN: templates/gitattributes.snippet missing from kit — .gitattributes not touched"
