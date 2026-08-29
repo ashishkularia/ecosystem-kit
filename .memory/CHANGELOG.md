@@ -1,5 +1,15 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-29 — **One repo can no longer kill a propagation run — for real this
+  time.** #31 claimed to fix this by converting `TimeoutExpired` into a
+  `RuntimeError`, but that is still fatal under `check=True`, which the push call
+  uses: the exception type changed and the run kept dying. Today mylantite's
+  pre-push gate refused (non-zero exit, not even a timeout — a path #31 never
+  touched) and grade5, meritick and homelab were never attempted. The push now
+  runs with `check=False` and a refusal is logged as `[FAIL] <repo>: push
+  refused`, and the whole per-repo body is wrapped so a step added later cannot
+  reintroduce the same failure.
+
 - 2026-08-29 — **artifact_sync commits the gallery it generates.** The root
   `docs/artifacts/index.html` was written and then left out of the commit
   pathspec, so it never entered git — the one file that makes the tree servable
