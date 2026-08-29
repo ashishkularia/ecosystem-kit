@@ -1,5 +1,15 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-29 — **artifact_sync commits the gallery it generates.** The root
+  `docs/artifacts/index.html` was written and then left out of the commit
+  pathspec, so it never entered git — the one file that makes the tree servable
+  was the one file missing. Invisible until now because every repo that tracks
+  it got it from a hand-run `git add` during a migration; meritick was the first
+  repo where the hook ran unassisted, and there the gallery sat untracked. Fixed
+  by committing every generated path, with a test that walks the output tree and
+  asserts each written file falls under a committed path — a general guard
+  rather than one that only knows about today's omission. 2 new tests, 210 green.
+
 - 2026-08-28 — **artifact_sync reports when its output is gitignored instead of
   claiming success.** An empty `git status` over the artifact paths means either
   "nothing changed" or "git cannot see these files" — identical output, opposite
