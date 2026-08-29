@@ -280,6 +280,33 @@ else
   echo "  WARN: templates/gitignore.snippet missing from kit — .gitignore not touched"
 fi
 
+# ── 8b. .gitattributes (union merge for the append-only ledgers) ────
+# The docs contract makes every substantive change touch CHANGELOG.md, and it is
+# newest-first — so concurrent branches always insert at the same line and always
+# conflict (a plain merge conflicts too, not just rebase). See
+# templates/gitattributes.snippet for why only the three genuinely append-only
+# files are listed.
+ATTRS="$KIT_ROOT/templates/gitattributes.snippet"
+if [ -f "$ATTRS" ]; then
+  touch "$TARGET_DIR/.gitattributes"
+  a_added=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -z "$line" ] && continue
+    case "$line" in '#'*) continue ;; esac
+    # Match on the PATH only: a repo that already set its own driver for one of
+    # these keeps it, instead of gaining a second contradictory line.
+    path_only="${line%% *}"
+    if ! grep -qE "^${path_only}[[:space:]]" "$TARGET_DIR/.gitattributes"; then
+      printf '%s\n' "$line" >> "$TARGET_DIR/.gitattributes"
+      a_added=$((a_added+1))
+    fi
+  done < "$ATTRS"
+  echo "  .gitattributes: $a_added line(s) appended"
+else
+  echo "  WARN: templates/gitattributes.snippet missing from kit — .gitattributes not touched"
+fi
+
+
 # ── 9. kit-version stamp ────────────────────────────────────────────
 KIT_VERSION="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('kit_version','1.0.0'))" "$CLAUDE_DIR/kit.json" 2>/dev/null || echo "1.0.0")"
 KIT_COMMIT="$(git -C "$KIT_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")"

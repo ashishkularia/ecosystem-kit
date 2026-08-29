@@ -1,0 +1,28 @@
+# ecosystem-kit: append-only ledgers use the union merge driver.
+#
+# WHY: the docs contract requires a CHANGELOG line on every substantive change,
+# and these files are newest-first — so EVERY branch inserts at the same
+# position, right under the header. Two branches inserting different text at the
+# identical line give git no basis to order them, and it conflicts. That is not
+# a rebase quirk: a plain merge conflicts too (verified 2026-08-29). It is the
+# format, and the contract guarantees every PR touches it.
+#
+# `merge=union` keeps BOTH sides instead of stopping. Safe here precisely
+# because these three are append-only by contract — "new entries go on top, old
+# entries are never edited or deleted".
+#
+# DELIBERATELY NOT LISTED: ISSUES.md, IDEAS.md and VERIFY.md are `- [ ]`/`- [x]`
+# queues whose items are CHECKED OFF, i.e. edited in place. Union would silently
+# duplicate a line both sides edited rather than conflicting — worse than the
+# conflict it avoids. STATE.md is rewritten wholesale; GOTCHAS/CONVENTIONS are
+# edited. Those must keep conflicting so a human looks.
+#
+# Cost accepted: when both sides add an entry, their relative order is whatever
+# union produces, not chronological. Same date, cosmetic.
+.memory/CHANGELOG.md      merge=union
+.memory/DOCS-CHANGELOG.md merge=union
+.memory/DECISIONS.md      merge=union
+# diary: per-branch under diary_scope "branch" so it rarely collides, but under
+# "daily" every branch writes the same dated file. This is the set the kit repo
+# has been running on itself since before the snippet existed.
+.memory/diary/*.md        merge=union
