@@ -1,5 +1,17 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-30 — **A deny-by-default `.gitignore` swallowed the union driver, and
+  the installer re-appended one line forever.** Two faults in the same block,
+  found by running the propagation and then installing twice. (1) DevContainer
+  ignores everything (`*` + an explicit `!` allowlist), so `git add .gitattributes`
+  REFUSED the file the patch had just written and took the whole repo down with a
+  RuntimeError — `install.sh` had the same hole, silently. Both now un-ignore it
+  by appending `!.gitattributes`, rather than forcing it into the index. (2) the
+  installer deduped with `grep -E "^$path"`, but these paths are globs:
+  `.memory/diary/*.md` as a regex reads `/` zero-or-more times and never matched
+  its own line, so every re-install appended another copy. Exact first-field
+  compare now; verified idempotent across three installs.
+
 - 2026-08-29 — **kit-propagate stages what the policy patches touch, not just
   `.claude/`.** The union-merge patch wrote `.gitattributes` at the repo ROOT,
   but staging was `git add .claude` — so the file was written, never staged,
