@@ -338,6 +338,10 @@ def main():
             print(f"[skip] {name}: kit update already pending ({existing[0]})")
             continue
         base = default_branch(repo)
+        # Repo-relative paths outside .claude/ that policy patches modify. A
+        # patch that writes anywhere else MUST add its path here or its work is
+        # silently discarded.
+        touched = set()
         wt = WORKTREES / f"{name}-kitup"
         run(["git", "-C", repo, "worktree", "remove", "--force", str(wt)], check=False)
         run(["git", "-C", repo, "branch", "-D", branch], check=False)
@@ -352,12 +356,20 @@ def main():
                 log(f"[wire] {name}: added hook wiring {', '.join(wired)}")
             attrs = patch_gitattributes(wt)
             if attrs:
+                touched.add(".gitattributes")
                 log(f"[attr] {name}: union merge for {', '.join(attrs)}")
             if not hooks_gate(wt):
                 log(f"[FAIL] {name}: hook gate failed — project-local engine additions need a "
                     f"manual merge with the kit engine; NO PR opened")
                 continue
-            run(["git", "-C", str(wt), "add", ".claude"])
+            # Stage .claude/ AND whatever the policy patches touched outside it.
+            # `git add .claude` alone silently dropped patch_gitattributes'
+            # work: .gitattributes lives at the repo root, so it was written,
+            # never staged, judged "no material changes", and deleted with the
+            # worktree — the union-merge fix reaching zero repos while the run
+            # reported [ok] (2026-08-29). Every earlier patch happened to write
+            # inside .claude/, which is why the scope held until it did not.
+            run(["git", "-C", str(wt), "add", ".claude", *sorted(touched)])
             changed = [l.split("\t")[-1] for l in
                        run(["git", "-C", str(wt), "diff", "--cached", "--name-only"]).stdout.splitlines()]
             if not changed or changed == [".claude/kit-version"]:

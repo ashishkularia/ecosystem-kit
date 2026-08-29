@@ -1,5 +1,15 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-29 — **kit-propagate stages what the policy patches touch, not just
+  `.claude/`.** The union-merge patch wrote `.gitattributes` at the repo ROOT,
+  but staging was `git add .claude` — so the file was written, never staged,
+  judged "no material changes (stamp-only)", and deleted with the worktree. All
+  five repos reported `[attr] union merge for …` immediately followed by `[ok]
+  no PR`, and **zero union lines reached any repo** while the run looked
+  successful. Every earlier policy patch happened to write inside `.claude/`,
+  which is why the scoped `add` held until it did not. Patches now record the
+  paths they touch outside `.claude/` and those are staged too.
+
 - 2026-08-29 — **Append-only ledgers get the union merge driver, kit-wide.** Owner
   asked why CHANGELOG conflicts in every MR. Cause is the format, not the merge
   strategy: the docs contract requires a CHANGELOG line on every substantive
