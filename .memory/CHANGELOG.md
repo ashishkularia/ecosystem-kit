@@ -1,5 +1,18 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-30 — **"Behind" now means behind `origin`, and a stale deployment says
+  so out loud.** Two follow-ups from the propagation runs. (1) `recorded_kit_commit`
+  read `.claude/kit-version` from the working checkout, so a repo parked on a
+  feature branch cut before its kit PR merged reported itself behind by a commit
+  it already had — mylantite read `2958de1` while its `origin/main` was at
+  `6b3a963`. It now reads `origin/<base>`, which is what an update PR is cut from,
+  and falls back to the checkout when the ref is absent. The per-repo fetch moved
+  above the read so it is answering with today's state. (2) `kit-propagate` warns
+  when `~/.claude/bin` differs from the kit, naming the tools and the refresh
+  command. Cron runs the DEPLOYED copy: three merged fixes to that very file sat
+  unused for days while it reported success. Advisory only — never blocks a run.
+  Also decided, on evidence: `.memory/GOTCHAS.md` stays OUT of the union driver.
+
 - 2026-08-30 — **A deny-by-default `.gitignore` swallowed the union driver, and
   the installer re-appended one line forever.** Two faults in the same block,
   found by running the propagation and then installing twice. (1) DevContainer

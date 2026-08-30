@@ -47,6 +47,7 @@ KIT = Path("/home/ubuntu/ecosystem-kit")
 REGISTRY = Path.home() / ".claude" / "repo-registry"
 TOKEN_FILE = Path.home() / ".secrets" / "github-pat"
 SAFE_PUSH = "/home/ubuntu/.claude/bin/safe-push"
+DEPLOYED = Path.home() / ".claude" / "bin"
 WORKTREES = Path("/home/ubuntu/worktrees")
 LOG = Path.home() / ".claude" / "kit-propagate.log"
 REMOTE_RE = re.compile(r"github\.com[:/]([^/]+)/([^/\s]+?)(?:\.git)?$")
@@ -96,12 +97,85 @@ def default_branch(path):
     return "main"
 
 
-def recorded_kit_commit(repo):
-    kv = Path(repo) / ".claude" / "kit-version"
-    if not kv.is_file():
-        return None
-    m = re.search(r"kit commit ([0-9a-f]{6,40})", kv.read_text())
+def recorded_kit_commit(repo, base=None):
+    """The kit commit a repo records, read from origin/<base> when available.
+
+    Reading .claude/kit-version out of the WORKING CHECKOUT reports whatever
+    branch that checkout happens to be parked on. mylantite sat on a feature
+    branch cut before its kit PR merged and reported itself behind by a commit
+    it already had (2026-08-30). An update PR is cut from origin/<base>, so
+    origin/<base> is what "behind" has to mean — the same reasoning the kit side
+    already applies to itself ("the REMOTE default's tip — authoritative, never
+    the local HEAD").
+
+    Falls back to the checkout when the ref or the file is absent, so a repo
+    that has never pushed a stamp still reports something.
+    """
+    text = None
+    if base:
+        r = run(["git", "-C", str(repo), "show", f"origin/{base}:.claude/kit-version"],
+                check=False)
+        if r.returncode == 0:
+            text = r.stdout
+    if text is None:
+        kv = Path(repo) / ".claude" / "kit-version"
+        if not kv.is_file():
+            return None
+        text = kv.read_text()
+    m = re.search(r"kit commit ([0-9a-f]{6,40})", text)
     return m.group(1) if m else "unknown"
+
+
+def warn_stale_deployment():
+    """Advisory: the deployed copy of a machine tool differs from the kit.
+
+    These tools run from ~/.claude/bin — cron included — not from the kit
+    checkout, and only bootstrap-machine.sh copies them across. Three merged
+    fixes to THIS FILE sat unused for days while cron executed the stale copy
+    and reported success; the union-merge fix reaching zero repos had that as
+    its second, independent cause (2026-08-30).
+
+    Warn, never abort: a stale deployment is worth saying out loud and is never
+    a reason to refuse to propagate.
+    """
+    src = KIT / "tools"
+    if not src.is_dir() or not DEPLOYED.is_dir():
+        return
+    # The deploy list lives in bootstrap-machine.sh; parse it rather than keep a
+    # second copy here that would drift. Falls back to "whatever is already
+    # deployed" if the line ever moves, which still catches drift, just not a
+    # tool that was never copied out.
+    names = None
+    boot = src / "bootstrap-machine.sh"
+    if boot.is_file():
+        m = re.search(r"for t in ([^;\n]+); do", boot.read_text())
+        if m:
+            names = [n for n in m.group(1).split() if n]
+    if not names:
+        names = [f.name for f in DEPLOYED.iterdir() if f.is_file()]
+
+    stale, missing = [], []
+    for n in names:
+        f, d = src / n, DEPLOYED / n
+        if not f.is_file():
+            continue
+        if not d.is_file():
+            missing.append(n)
+        else:
+            try:
+                if d.read_bytes() != f.read_bytes():
+                    stale.append(n)
+            except OSError:
+                pass
+    if stale or missing:
+        bits = []
+        if stale:
+            bits.append(f"stale: {', '.join(sorted(stale))}")
+        if missing:
+            bits.append(f"never deployed: {', '.join(sorted(missing))}")
+        log(f"[warn] ~/.claude/bin differs from the kit ({'; '.join(bits)}) — "
+            f"cron runs the DEPLOYED copy, so these fixes are NOT live. "
+            f"Refresh: bash {boot}")
 
 
 def hooks_gate(wt):
@@ -317,16 +391,32 @@ def main():
                 f"refusing to propagate unmerged content. "
                 f"Fix: git -C {KIT} checkout {kit_default} && git -C {KIT} pull --ff-only")
             return 1
+    warn_stale_deployment()
     paths = [ln.split("#")[0].strip() for ln in REGISTRY.read_text().splitlines()
              if ln.split("#")[0].strip()] if REGISTRY.exists() else []
 
     for repo in paths:
         if Path(repo).resolve() == KIT.resolve():
             continue
-        rec = recorded_kit_commit(repo)
+        name = Path(repo).name
+        base = default_branch(repo)
+        # Fetch BEFORE the stamp read: the stamp now comes from origin/<base>,
+        # so a stale remote-tracking ref would answer "behind" with yesterday's
+        # state. `check` deliberately does NOT fetch — it is read-only and
+        # reports what is known locally.
+        #
+        # --prune is load-bearing, not tidiness. The pending-branch skip below
+        # reads LOCAL remote-tracking refs, and a plain fetch never deletes the
+        # ref for a branch the remote dropped — which GitHub does on every PR
+        # merge. Without pruning, a repo whose kit-update PR merged keeps a
+        # stale refs/remotes/origin/chore/kit-update-* forever and is skipped
+        # FOREVER: one kit update per repo, then silence.
+        if mode == "run":
+            run(["git", "-C", repo, "fetch", "-q", "--prune"], check=False,
+                timeout=NETWORK_TIMEOUT)
+        rec = recorded_kit_commit(repo, base)
         if rec is None:
             continue  # no kit install
-        name = Path(repo).name
         if rec == kit_head:
             print(f"[ok]   {name}: up to date ({kit_head})")
             continue
@@ -335,15 +425,6 @@ def main():
             continue
 
         branch = f"chore/kit-update-{kit_head}"
-        # --prune is load-bearing, not tidiness. The skip below reads LOCAL
-        # remote-tracking refs, and a plain fetch never deletes the ref for a
-        # branch the remote dropped — which GitHub does on every PR merge.
-        # Without pruning, a repo whose kit-update PR merged keeps a stale
-        # refs/remotes/origin/chore/kit-update-* forever and is skipped
-        # FOREVER: one kit update per repo, then silence. The exact-branch
-        # check this replaced was equally stale but self-healed, because the
-        # branch name changed each time kit main moved.
-        run(["git", "-C", repo, "fetch", "-q", "--prune"], check=False, timeout=NETWORK_TIMEOUT)
         # Skip while ANY kit-update branch is pending, not just this kit head's.
         # Keying the check on kit_head meant a single kit commit landing between
         # runs defeated it: the branch name changed, the open PR was invisible,
@@ -355,7 +436,6 @@ def main():
         if existing:
             print(f"[skip] {name}: kit update already pending ({existing[0]})")
             continue
-        base = default_branch(repo)
         # Repo-relative paths outside .claude/ that policy patches modify. A
         # patch that writes anywhere else MUST add its path here or its work is
         # silently discarded.
