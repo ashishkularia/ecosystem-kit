@@ -1,5 +1,23 @@
 # DOCS-CHANGELOG — ecosystem-kit
 
+- 2026-08-31 — STATE.md revalidated (busy week, reversing the last two: 13
+  substantive commits landed 2026-08-27→08-30 after two quiet weeks; engine
+  suite jumped 164→210, hook modules 12→13 (`artifact_sync`), wirings 16→17.
+  Real corrections: (1) the stacked-unpushed-hygiene-commit backlog flagged
+  2026-08-17/08-24 is cleared — `main` is 0 ahead/0 behind `origin/main`;
+  (2) the `~/.claude/*` sandbox block that froze cross-repo claims across the
+  prior four headless runs (ISSUES 2026-08-03) did NOT reproduce this run —
+  `~/.claude/repo-registry`, every target's `.claude/kit-version`, and
+  `crontab -l` all read successfully, surfacing a sixth registry line
+  (`ecosystem-kit` itself, skipped by `kit-propagate` but not by
+  `pr-comment-poller`/`pr-rebase`/`prune-stale-branches`) that STATE never
+  recorded before because no prior run could see it. Flagged as one data
+  point pending re-test, not a confirmed policy change (ISSUES). VERIFY's
+  session_boot entry annotated with this new information; the two
+  genuinely-mutating VERIFY items untouched (no new info, nothing changed).
+  No other CHANGELOG-worthy change this run — all substantive work above was
+  already logged as it landed.
+
 - 2026-08-24 — STATE.md revalidated (third quiet week running: zero
   substantive commits since 2026-08-17, engine suite still 164/164, hook
   wiring still 12/16, unchanged). One real correction: the 2026-08-17 hygiene
