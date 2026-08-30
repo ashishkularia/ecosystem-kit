@@ -1,0 +1,57 @@
+{
+  "kit_version": "1.0.0",
+  "project": "percale",
+  "stack": "undecided",
+  "_note": "E-commerce platform, bed linens first. SCAFFOLD STATE: the stack is deliberately not chosen yet (owner decision 2026-08-30), so gates carry no commands and source_patterns is EMPTY — which means the docs contract will not fire on code, because nothing is classified as app source yet. Fill source_patterns and the G1 commands in the SAME change that lands the framework, or the kit is installed and silently inert. Tracked as the first open item in .memory/STATE.md.",
+  "protected_branches": ["main", "master"],
+  "branch_types": ["feature", "fix", "hotfix", "bugfix", "chore", "docs", "refactor", "test", "revert"],
+  "merge_is_deploy": false,
+  "ceremony": {
+    "default": "standard",
+    "levels": {
+      "express": ["G1"],
+      "standard": ["G1", "G2"],
+      "full": ["G1", "G2", "G3"],
+      "critical": ["G1", "G2", "G3"]
+    }
+  },
+  "gates": {
+    "G1": {
+      "name": "Quality",
+      "desc": "Format, lint, typecheck, tests. NO COMMANDS YET — the stack is undecided; this gate passes vacuously until quality_commands are filled in.",
+      "commands": []
+    },
+    "G2": {
+      "name": "Alignment",
+      "desc": "Change matches the request: complete, no scope creep, no invented requirements. Docs describe what exists, not what is planned.",
+      "commands": []
+    },
+    "G3": {
+      "name": "Runtime Verification",
+      "desc": "Change verified against a running instance: pages render, orders transact, money paths exercised end to end. Commerce means a wrong path costs a real customer a real amount.",
+      "commands": []
+    }
+  },
+  "containers": {},
+  "quality_commands": {
+    "format": [],
+    "lint": [],
+    "typecheck": [],
+    "test": []
+  },
+  "source_patterns": [],
+  "domain_map": [],
+  "always_load": [
+    ".memory/STATE.md",
+    ".memory/CONVENTIONS.md",
+    ".memory/GOTCHAS.md"
+  ],
+  "principles": {
+    "tdd": "advise",
+    "fail_fast": "advise",
+    "logging": "advise",
+    "dead_code": "advise",
+    "dry_kiss": "advise"
+  },
+  "diary": true
+}
