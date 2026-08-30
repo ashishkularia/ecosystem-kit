@@ -1,5 +1,15 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-08-30 — **`profiles/percale.json` added — a sixth installed repo.**
+  New project scaffolded in DevContainer (e-commerce, bed linens). Stack is
+  deliberately undecided, so the profile is honest about being pre-stack: no gate
+  commands, empty `quality_commands`, and an EMPTY `source_patterns` — which means
+  the docs contract does not fire on code there yet. The `_note` says so, because
+  a profile that silently disables the contract is worse than one that fails
+  loudly. Conforms to the schema exactly (16 keys, checked against homelab,
+  meritick and grade5). Not yet in the machine repo-registry: it has no remote,
+  and kit-propagate needs one to open a PR.
+
 - 2026-08-30 — **"Behind" now means behind `origin`, and a stale deployment says
   so out loud.** Two follow-ups from the propagation runs. (1) `recorded_kit_commit`
   read `.claude/kit-version` from the working checkout, so a repo parked on a
