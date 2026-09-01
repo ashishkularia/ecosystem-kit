@@ -42,6 +42,14 @@ npx serve docs/artifacts     # or: python3 -m http.server -d docs/artifacts
 
 By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. Configure with the `artifacts` key in `kit.json`.
 
+**They also get posted.** Mirroring makes an artifact durable, not reachable, so every profile points `artifacts.deploy_command` at `~/.claude/bin/deploy-artifacts` — a dispatcher that hands the tree to whatever this machine serves artifacts with. Configure the destination once per machine:
+
+```bash
+ln -s ~/homeassistant/ops/lxc/deploy-artifacts.sh ~/.claude/artifacts-deploy
+```
+
+Unconfigured, it says so on every publish instead of failing quietly. Set `deploy_command` to `""` in a repo that should never publish.
+
 ## The owner guardrail
 
 **Claude never merges or writes to `main`/`master` — anywhere, in any repo.** Only the owner merges. This is enforced fail-closed by `guard_protected_merge` (git merge/rebase into protected branches, `gh pr merge`, push refspecs targeting protected branches, GitHub MCP write tools) and `guard_branch_naming` (protected names are never creatable). `/pr-babysit` shepherds a PR through checks and review comments but stops short of the merge button, always.

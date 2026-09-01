@@ -91,6 +91,6 @@
   "diary": true,
   "diary_scope": "branch",
   "artifacts": {
-    "deploy_command": "bash /home/ubuntu/homeassistant/ops/lxc/deploy-artifacts.sh {project} {dir}"
+    "deploy_command": "bash \"$HOME/.claude/bin/deploy-artifacts\" {project} {dir}"
   }
 }
