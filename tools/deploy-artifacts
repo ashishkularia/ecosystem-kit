@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#
+# deploy-artifacts — the seam between `artifact_sync` and wherever THIS machine
+# serves artifacts.
+#
+# Profiles ship `artifacts.deploy_command` pointing here, so every installed
+# repo deploys by default. What they must NOT ship is a destination: the
+# homelab's own deploy script knows a Proxmox host, CTID 102, an nginx LXC and
+# artifacts.kularia.net, and that is project-bound infrastructure which stays
+# in its own repo (DECISIONS 2026-08-27). Before this indirection existed, the
+# profiles' only options were to hardcode
+# `/home/ubuntu/homeassistant/ops/lxc/deploy-artifacts.sh` into a shared kit —
+# a per-machine absolute path making four repos' deploys depend on a fifth
+# being checked out at one exact path — or to ship nothing, which is what
+# actually happened: `deploy_command` was hand-added to three of six repos and
+# mylantite and meritick mirrored artifacts that reached no host at all.
+#
+# So the kit ships the seam and the relevance gate; the machine supplies the
+# destination, once:
+#
+#   ln -s ~/homeassistant/ops/lxc/deploy-artifacts.sh ~/.claude/artifacts-deploy
+#
+# Resolution order: $ARTIFACTS_DEPLOY_IMPL, then ~/.claude/artifacts-deploy.
+#
+# Exits NON-ZERO when unconfigured, deliberately. `artifact_sync` runs this
+# advisory and after the commit, so a failure here costs a stale web page and
+# never the artifact — while a silent exit 0 would reproduce the exact bug this
+# fixes, a repo reporting a successful publish having posted nothing. A repo
+# that should genuinely never deploy sets `artifacts.deploy_command: ""`.
+#
+#   usage: deploy-artifacts <project> <dir>
+set -uo pipefail
+
+PROJECT="${1:-}"
+DIST="${2:-}"
+
+if [ -z "$PROJECT" ] || [ -z "$DIST" ]; then
+  echo "usage: deploy-artifacts <project> <dir>" >&2
+  exit 2
+fi
+
+IMPL="${ARTIFACTS_DEPLOY_IMPL:-$HOME/.claude/artifacts-deploy}"
+
+if [ ! -e "$IMPL" ]; then
+  echo "NOT PUBLISHED — no artifacts deploy target configured on this machine." >&2
+  echo "The artifact is mirrored and committed; it just did not reach a host." >&2
+  echo "Point $HOME/.claude/artifacts-deploy at this machine's deploy script" >&2
+  echo "(e.g. ln -s ~/homeassistant/ops/lxc/deploy-artifacts.sh $HOME/.claude/artifacts-deploy)," >&2
+  echo "or set artifacts.deploy_command to \"\" in this repo's .claude/kit.json." >&2
+  exit 2
+fi
+
+if [ ! -x "$IMPL" ]; then
+  echo "artifacts deploy target is not executable: $IMPL" >&2
+  exit 2
+fi
+
+exec "$IMPL" "$PROJECT" "$DIST"

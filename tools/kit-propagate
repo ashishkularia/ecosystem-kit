@@ -20,6 +20,10 @@ kit-version stamp is behind kit main, it produces ONE update PR:
 POLICY PATCHES (kit-wide owner rules applied outside update.sh's scope):
   - attribution {commit:"", pr:"", sessionUrl:false} merged into
     .claude/settings.json when absent (owner rule 2026-07-29).
+  - artifacts.deploy_command copied from the matching profile into
+    .claude/kit.json when that key is absent, so every repo posts its published
+    artifacts instead of only mirroring them. ADD-ONLY: an existing value is
+    kept, including an explicit "" meaning "never publish this repo".
   - missing kit hook wiring appended to .claude/settings.json (ADDITIVE only:
     never removes, reorders, or touches project-local hooks). Without it a kit
     change that wires an existing hook onto a NEW event ships as dead code —
@@ -259,6 +263,55 @@ def patch_attribution(wt):
     return True
 
 
+def patch_artifacts_deploy(wt):
+    """Give a target's kit.json the profile's `artifacts.deploy_command`.
+
+    Profiles carry this key, but a profile is copied to `.claude/kit.json` ONCE
+    at install and is project-owned forever after — update.sh never touches it.
+    So adding the key to profiles fixes new installs and no existing one, which
+    is how three of six repos ended up deploying artifacts and three did not:
+    the command was hand-added to the three, and mylantite and meritick
+    mirrored artifacts that reached no host at all (2026-09-01).
+
+    The value comes from the profile whose `project` matches the target's, so
+    profiles stay the single source of truth and this never has to be edited
+    when the seam moves.
+
+    STRICTLY ADD-ONLY. A repo that already set `deploy_command` keeps it, and
+    that includes an explicit `""` — which is the documented way to say "this
+    repo must never publish". Overwriting either would make a policy patch
+    louder than the project it is patching.
+    """
+    p = Path(wt) / ".claude" / "kit.json"
+    if not p.is_file():
+        return None
+    try:
+        target = json.loads(p.read_text())
+    except ValueError:
+        return None
+    if "deploy_command" in (target.get("artifacts") or {}):
+        return None
+
+    project = target.get("project")
+    if not project:
+        return None
+    want = None
+    for prof in sorted((KIT / "profiles").glob("*.json")):
+        try:
+            d = json.loads(prof.read_text())
+        except ValueError:
+            continue
+        if d.get("project") == project:
+            want = (d.get("artifacts") or {}).get("deploy_command")
+            break
+    if not want:
+        return None
+
+    target.setdefault("artifacts", {})["deploy_command"] = want
+    p.write_text(json.dumps(target, indent=2) + "\n")
+    return want
+
+
 def patch_hook_wiring(wt):
     """Add kit hook wirings the target's settings.json is missing.
 
@@ -452,6 +505,9 @@ def main():
             wired = patch_hook_wiring(wt)
             if wired:
                 log(f"[wire] {name}: added hook wiring {', '.join(wired)}")
+            deployed = patch_artifacts_deploy(wt)
+            if deployed:
+                log(f"[artf] {name}: artifacts.deploy_command set from profile")
             attrs, attr_paths = patch_gitattributes(wt)
             if attrs:
                 touched |= attr_paths

@@ -69,5 +69,8 @@
     "dead_code": "advise",
     "dry_kiss": "advise"
   },
+  "artifacts": {
+    "deploy_command": "bash \"$HOME/.claude/bin/deploy-artifacts\" {project} {dir}"
+  },
   "diary": true
 }

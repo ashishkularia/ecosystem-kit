@@ -35,13 +35,13 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches mcp-audit unwedge-hooks.py start-remote-sessions.sh; do
+for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches mcp-audit deploy-artifacts unwedge-hooks.py start-remote-sessions.sh; do
   if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
   else warn "tool not in this kit checkout, skipped: $t"; fi
 done
 cp "$KIT/tools/guard_protected_branch.py" "$HOOKS_MACHINE/guard_protected_branch.py"
 chmod +x "$HOOKS_MACHINE/guard_protected_branch.py"
-ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, mcp-audit, unwedge-hooks, start-remote-sessions, guard_protected_branch"
+ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, mcp-audit, deploy-artifacts, unwedge-hooks, start-remote-sessions, guard_protected_branch"
 
 act "machine guardrails -> settings.local.json"
 python3 - "$SETTINGS" "$BIN" "$HOOKS_MACHINE" <<'PYEOF'
@@ -260,9 +260,20 @@ verify_boot_automation
 echo
 echo "== bootstrap summary =="
 for f in "$BIN/safe-push" "$BIN/weekly-hygiene" "$BIN/pr-comment-poller" \
-         "$BIN/mcp-audit" "$HOOKS_MACHINE/guard_protected_branch.py"; do
+         "$BIN/mcp-audit" "$BIN/deploy-artifacts" "$HOOKS_MACHINE/guard_protected_branch.py"; do
   [ -x "$f" ] && ok "$(basename "$f")" || warn "missing: $f"
 done
+# The dispatcher being present is not the same as this machine having somewhere
+# to publish TO. Every profile now points `artifacts.deploy_command` at it, so
+# an unconfigured destination means every repo mirrors artifacts that reach no
+# host — which is precisely the state that went unnoticed until 2026-09-01.
+if [ -e "$HOME/.claude/artifacts-deploy" ]; then
+  ok "artifacts deploy target: $(readlink -f "$HOME/.claude/artifacts-deploy")"
+else
+  warn "no artifacts deploy target — published artifacts will be mirrored but NOT posted.
+         Point it at this machine's deploy script:
+           ln -s ~/homeassistant/ops/lxc/deploy-artifacts.sh $HOME/.claude/artifacts-deploy"
+fi
 crontab -l 2>/dev/null | grep -qF "$BIN/weekly-hygiene" && ok "cron: weekly hygiene" || warn "cron: hygiene missing"
 crontab -l 2>/dev/null | grep -qF "$BIN/pr-comment-poller" && ok "cron: PR poller" || warn "cron: poller missing"
 echo

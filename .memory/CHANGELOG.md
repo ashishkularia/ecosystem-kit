@@ -1,5 +1,20 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-09-01 — **Every profile now deploys its artifacts; the kit ships a seam, not
+  a destination.** `artifact_sync` mirrored artifacts everywhere but POSTED them in
+  only three of six repos: `artifacts.deploy_command` shipped empty in all seven
+  profiles and had been hand-added to three installed `kit.json` files, so
+  mylantite and meritick mirrored, committed and published nothing for five days
+  while every publish reported success. All seven profiles now carry
+  `bash "$HOME/.claude/bin/deploy-artifacts" {project} {dir}`; new
+  `tools/deploy-artifacts` is a dispatcher resolving the machine's implementation
+  from `$ARTIFACTS_DEPLOY_IMPL` or `~/.claude/artifacts-deploy`, deployed by
+  `bootstrap-machine.sh` (which now also WARNS when no destination is configured).
+  The homelab's `ops/lxc/deploy-artifacts.sh` stays in its own repo. New
+  `kit-propagate` policy patch `patch_artifacts_deploy` back-fills the key into
+  already-installed repos, add-only, respecting an explicit `""` opt-out. This
+  repo's own `kit.json` migrated off the hardcoded absolute path.
+
 - 2026-08-30 — **`profiles/percale.json` added — a sixth installed repo.**
   New project scaffolded in DevContainer (e-commerce, bed linens). Stack is
   deliberately undecided, so the profile is honest about being pre-stack: no gate

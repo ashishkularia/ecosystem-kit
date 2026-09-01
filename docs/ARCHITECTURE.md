@@ -177,15 +177,39 @@ git discarded all of it — present locally, gone on a fresh clone.
 **Reaching its host.** Mirroring makes an artifact durable, not *reachable*. A
 repo that serves `docs/artifacts/` somewhere would otherwise need a human to
 remember a second command after every publish — the kind of step that silently
-stops happening. `artifacts.deploy_command` (empty by default, so nothing runs)
-is a shell string run after the sync, with `{dir}` and `{project}` substituted;
-`deploy_timeout` bounds it. Same trust level as `quality_commands` and
-`gates.commands`: kit.json is project-owned and is already how a project says
-what to execute. **Advisory** — a failed, slow or misconfigured deploy is
-reported and never fails the publish, because the artifact is written and
-committed before it runs, so an unreachable host can never cost you the
-artifact. This repo uses it against the kularia homelab's
-`ops/lxc/deploy-artifacts.sh`, which publishes to `artifacts.kularia.net/<repo>/`.
+stops happening. `artifacts.deploy_command` is a shell string run after the
+sync, with `{dir}` and `{project}` substituted; `deploy_timeout` bounds it. Same
+trust level as `quality_commands` and `gates.commands`: kit.json is
+project-owned and is already how a project says what to execute. **Advisory** —
+a failed, slow or misconfigured deploy is reported and never fails the publish,
+because the artifact is written and committed before it runs, so an unreachable
+host can never cost you the artifact.
+
+**Every profile deploys by default, through a seam (2026-09-01).** The engine
+default is still empty — the engine must not assume a machine has anywhere to
+publish — but leaving *profiles* empty too meant deploying was configured by
+hand, per repo, forever. It reached three of six: mylantite and meritick
+mirrored artifacts, committed them, and posted them nowhere, for five days,
+while every publish reported success. Automating the publish without automating
+its configuration automates nothing.
+
+So each profile now ships `deploy_command: bash "$HOME/.claude/bin/deploy-artifacts"
+{project} {dir}` — a kit-owned dispatcher (`tools/deploy-artifacts`, deployed by
+`bootstrap-machine.sh`) that resolves the machine's implementation from
+`$ARTIFACTS_DEPLOY_IMPL` or `~/.claude/artifacts-deploy`. **The kit ships the
+seam and the relevance gate; the machine supplies the destination.** The
+homelab's `ops/lxc/deploy-artifacts.sh` — Proxmox host, CTID 102, an nginx LXC,
+`artifacts.kularia.net/<repo>/` — stays in its own repo, exactly as the
+promotion rule requires. The alternative, putting that absolute path in a shared
+kit, would ship a per-machine path to every clone and make four repos' deploys
+depend on a fifth being checked out at one exact location, with nothing
+detecting the break.
+
+The dispatcher exits **non-zero** when no destination is configured, rather than
+no-op'ing quietly: a silent success is the precise failure this change exists to
+fix. Being advisory, that costs a warning line and never the artifact. A repo
+that should genuinely never publish sets `deploy_command: ""` — the documented
+off switch, which the policy patch below respects.
 
 **The tree is a static site as-is.** Every artifact directory has an
 `index.html` and the root has a generated gallery, so `npx serve docs/artifacts`
@@ -242,6 +266,7 @@ git"*.
 | `commands/`, `agents/` (update.sh) | refresh **only while still byte-identical to the kit template the target was installed from** — the baseline is the kit commit recorded in `.claude/kit-version`, resolved with `git show <commit>:templates/…`. Customized files are reported `KEPT` and left alone; an unresolvable baseline is treated as customized. Closes the gap where an improved kit command (`pr-babysit`, 2026-08-13) could reach no installed repo, since `update.sh` skipped commands and `install.sh` is skip-if-exists |
 | hook wiring (update.sh) | **report only, never edit.** `settings.json` is project-owned, so a hook the kit ADDS lands on disk unwired — it never fires and health-check reports `[ERR] wiring drift`. update.sh now diffs delivered modules against the wiring and prints the exact block to paste, taking the event and matcher from `templates/settings.json.template`. Latent since the wiring convention settled; first hit by `artifact_sync` (2026-08-27), the first new hook shipped since |
 | `.gitattributes` | append missing `merge=union` lines for the append-only ledgers (`CHANGELOG`, `DOCS-CHANGELOG`, `DECISIONS`, `diary/*`). The docs contract makes every substantive change touch CHANGELOG.md and the file is newest-first, so concurrent branches always insert at the same line and always conflict — a plain merge conflicts too, not just rebase (verified 2026-08-29). Matched on the PATH so a repo that set its own driver keeps it. Deliberately NOT applied to `ISSUES`/`IDEAS`/`VERIFY`: those are `- [ ]`/`- [x]` queues edited in place, where union would silently duplicate a line both sides changed instead of conflicting. Also a `kit-propagate` policy patch, since `install.sh` runs once and every existing repo predates this |
+| `kit.json` `artifacts.deploy_command` | **add only when absent**, copied from the profile whose `project` matches the target's. A profile is copied to `kit.json` once at install and is project-owned forever after, so adding the key to profiles fixes new installs and no existing one — which is how the deploy command ended up hand-added to three of six repos. An existing value is kept, *including an explicit `""`*: that is a repo saying "never publish me", and a policy patch must not be louder than the project it patches. A `kit-propagate` policy patch only |
 | `.claude/kit-version` | stamp |
 
 `installer/update.sh TARGET_DIR` — refreshes **engine + scripts + skills only**, never `.memory/`, `kit.json`, or `settings.json`, and shows what changed.
