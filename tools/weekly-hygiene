@@ -3,9 +3,22 @@
 #
 # The drain loops (STATE revalidation, VERIFY retirement, summary digest) are
 # the parts proven to rot under discipline alone, so a machine runs them
-# weekly. Doc-only by design: touches nothing outside .memory/, commits on
-# the current branch, NEVER pushes (owner pushes/merges; safe-push guards the
-# remotes anyway).
+# weekly. Doc-only by design: touches nothing outside .memory/.
+#
+# COMMITS ON A BRANCH AND OPENS A PR (2026-09-02). It used to commit straight
+# to the default branch and never push, which quietly broke a different tool:
+# local main went one commit ahead every Monday, the next PR merge on GitHub
+# made it DIVERGE, and kit-propagate refuses to run unless the kit checkout is
+# on a synced main. 19 of its runs aborted for exactly that, against 8 that
+# worked — propagation failed more often than it succeeded, and only the owner
+# could clear it, by hand, every week. Two tools each correct alone; the seam
+# between them failed silently.
+#
+# So the SCRIPT (not the model) creates `chore/hygiene-<date>`, and the model
+# commits there. The model still cannot push: its --allowedTools grant has no
+# network and no safe-push. Afterwards the script pushes via safe-push and
+# opens the PR, then puts the checkout back on its default branch. Owner still
+# merges. Nothing ever writes to main.
 #
 # Repo list comes from the shared machine registry (~/.claude/repo-registry,
 # one checkout path per line — manage with `pr-comment-poller register`).
@@ -28,11 +41,56 @@ fi
 # commands (esp. arbitrary code) with no approver. An explicit --allowedTools
 # grant overrides that for exactly the tools hygiene needs — all LOCAL (git
 # add/commit, python for /state checks, file edits for diary). No network, no
-# safe-push, no GitHub tools: hygiene never pushes. The settings deny list and
+# safe-push, no GitHub tools: the MODEL never pushes — the script does, after
+# the run, on a branch. The settings deny list and
 # guard hooks still apply on top.
 ALLOWED_TOOLS=( --allowedTools
   "Bash(git:*)" "Bash(python3:*)" "Bash(bash:*)" "Bash(make:*)" "Bash(jq:*)"
   Edit Write Read Grep Glob )
+
+SAFE_PUSH="${SAFE_PUSH:-$HOME/.claude/bin/safe-push}"
+# cron's PATH is not the login shell's — resolve gh the way bootstrap does.
+GH="${GH_BIN:-$(command -v gh 2>/dev/null || echo "$HOME/.local/bin/gh")}"
+
+# The remote's default branch, not an assumption about its name. Mirrors
+# kit-propagate's resolution order so the two tools cannot disagree about
+# what "the default branch" means for a repo.
+default_branch() {
+  local d
+  d=$(git -C "$1" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null) && {
+    echo "${d##*/}"; return; }
+  for b in main master; do
+    git -C "$1" rev-parse --verify -q "origin/$b" >/dev/null && { echo "$b"; return; }
+  done
+  git -C "$1" branch --show-current
+}
+
+# Uncommitted state in the ONLY paths hygiene stages: .memory/, minus cache/.
+#
+# Scoped to .memory/ on purpose. Requiring a fully clean tree looked safer and
+# was worse: a repo with any work in progress would be skipped every week and
+# hygiene would silently stop happening there — the same class of failure this
+# whole change exists to remove (meritick was dirty on the very first real
+# dry-run). Unrelated dirt rides along harmlessly through checkout, because the
+# model stages .memory/ paths and nothing else.
+#
+# cache/ is excluded because the run log is written into it BY THIS SCRIPT, so
+# counting it as dirt makes hygiene trip over its own feet: the post-run check
+# sees the log, refuses to restore the default branch, and parks the checkout on
+# the hygiene branch. Kit-installed repos self-ignore cache/ (tracked
+# cache/.gitignore of `*` + `!.gitignore`), so it only bites where that
+# convention is missing — exactly where the damage would be silent.
+memory_dirty() {
+  [ -n "$(git -C "$1" status --porcelain -- .memory ':!.memory/cache')" ]
+}
+
+# Put the checkout back, and SAY SO if it will not go — a repo left parked on a
+# hygiene branch looks fine to every other tool and to the owner's next session.
+restore_branch() {
+  git -C "$1" checkout -q "$2" 2>/dev/null && return 0
+  echo "[WARN] $(basename "$1"): could not restore branch '$2' — checkout is on '$(git -C "$1" branch --show-current)'"
+  return 1
+}
 
 DRY=0
 [ "${1:-}" = "--dry-run" ] && { DRY=1; shift; }
@@ -52,12 +110,13 @@ if [ ${#REPOS[@]} -eq 0 ]; then
 fi
 
 TODAY=$(date +%F)
+BRANCH="chore/hygiene-${TODAY}"
 PROMPT="Weekly .memory hygiene run (headless, ${TODAY}). Work ONLY inside this repository's .memory/ directory, in this order:
 1. /state — revalidate .memory/STATE.md against the repository's reality and restamp its validation date; route surprises to ISSUES.md.
 2. /verify — work through .memory/VERIFY.md entries whose acceptance criteria can be checked read-only from here; tick what passes, annotate what fails. Never mutate live systems, never deploy, never call destructive tools.
 3. /summary — digest ISSUES + IDEAS + VERIFY + CHANGELOG into a top-3 'do next' list.
 4. Append a diary entry to .memory/diary/${TODAY}.md: what the hygiene run found, what changed, the top-3.
-5. Only if the repository is on its default branch with a clean merge state (no rebase or merge in progress, not detached): stage ONLY .memory/ paths and commit with message 'chore(memory): weekly hygiene ${TODAY}'. Do not push anything. If the git state looks unusual in any way, write the diary entry and stop there."
+5. Stage ONLY .memory/ paths and commit with message 'chore(memory): weekly hygiene ${TODAY}'. You are ALREADY on a dedicated hygiene branch that this script created and will push for you — commit on the branch you are on. Do NOT switch, create or delete branches, do NOT push, and do NOT touch the default branch. If the git state looks unusual in any way, write the diary entry and stop there."
 
 for repo in "${REPOS[@]}"; do
   name=$(basename "$repo")
@@ -70,13 +129,81 @@ for repo in "${REPOS[@]}"; do
     echo "[skip] $name: merge/rebase in progress"
     continue
   fi
+  # A hygiene branch is cut from where the checkout already sits, so it must
+  # sit somewhere sane: on the default branch, with nothing uncommitted. A
+  # dirty tree would land the owner's in-progress work in the hygiene commit,
+  # and a feature branch would cut the hygiene branch off unmerged work.
+  base=$(default_branch "$repo")
+  cur=$(git -C "$repo" branch --show-current)
+  if [ "$cur" != "$base" ]; then
+    echo "[skip] $name: on '$cur', not default branch '$base'"
+    continue
+  fi
+  if memory_dirty "$repo"; then
+    echo "[skip] $name: uncommitted .memory/ changes — hygiene would sweep them in"
+    continue
+  fi
+  # A hygiene branch that still exists means last week's PR is unmerged. Adding
+  # a second one stacks PRs that both rewrite the same ledgers and conflict.
+  if git -C "$repo" rev-parse --verify -q "$BRANCH" >/dev/null \
+     || git -C "$repo" rev-parse --verify -q "origin/$BRANCH" >/dev/null; then
+    echo "[skip] $name: $BRANCH already exists (PR pending?)"
+    continue
+  fi
+
   mkdir -p "$repo/.memory/cache"
   log="$repo/.memory/cache/hygiene-${TODAY}.log"
   if [ "$DRY" -eq 1 ]; then
-    echo "[dry]  $name: would run claude -p in $repo (log: $log)"
+    echo "[dry]  $name: would run claude -p on $BRANCH in $repo (log: $log)"
     continue
   fi
+
+  if ! git -C "$repo" checkout -q -b "$BRANCH"; then
+    echo "[FAIL] $name: could not create $BRANCH"
+    continue
+  fi
+  before=$(git -C "$repo" rev-parse HEAD)
+
   echo "[run]  $name -> $log"
   ( cd "$repo" && "$CLAUDE" "${ALLOWED_TOOLS[@]}" -p "$PROMPT" ) >> "$log" 2>&1 \
-    && echo "[ok]   $name" || echo "[FAIL] $name (see $log)"
+    || echo "[warn] $name: claude exited non-zero (see $log)"
+
+  after=$(git -C "$repo" rev-parse HEAD)
+  if memory_dirty "$repo"; then
+    # Uncommitted leftovers: restoring the default branch would drag them
+    # along or fail outright. Stop, keep everything, and say where it is.
+    echo "[WARN] $name: uncommitted changes left on $BRANCH — checkout LEFT on that branch, resolve by hand"
+    continue
+  fi
+  if [ "$before" = "$after" ]; then
+    restore_branch "$repo" "$base" && git -C "$repo" branch -q -D "$BRANCH"
+    echo "[ok]   $name: nothing to commit"
+    continue
+  fi
+
+  # Push, then PR. Order matters and so does the failure handling: a pushed
+  # branch with no PR is an ORPHAN, and the skip above then treats this repo as
+  # "PR pending" forever — one hygiene run per repo, then silence. That exact
+  # trap bit kit-propagate on 2026-08-27, so name it loudly rather than
+  # swallowing it.
+  if ! "$SAFE_PUSH" -C "$repo" -u origin "$BRANCH" >>"$log" 2>&1; then
+    echo "[WARN] $name: commit made on $BRANCH but push FAILED — no PR (see $log)"
+    restore_branch "$repo" "$base"
+    continue
+  fi
+  pr_body="Automated weekly \`.memory\` hygiene for ${TODAY}, by \`weekly-hygiene\`.
+
+Doc-only: touches nothing outside \`.memory/\`. STATE revalidated, VERIFY entries
+checked read-only, ISSUES/IDEAS/CHANGELOG digested, diary entry appended.
+
+Run log: \`.memory/cache/hygiene-${TODAY}.log\` (gitignored).
+
+Merge is yours; next week's run skips this repo while this branch exists."
+  if pr_url=$( cd "$repo" && "$GH" pr create --base "$base" --head "$BRANCH" \
+                 --title "chore(memory): weekly hygiene ${TODAY}" --body "$pr_body" 2>&1 ); then
+    echo "[PR]   $name: $pr_url"
+  else
+    echo "[WARN] $name: branch $BRANCH PUSHED but PR creation failed — orphan branch, open the PR by hand: $pr_url"
+  fi
+  restore_branch "$repo" "$base"
 done

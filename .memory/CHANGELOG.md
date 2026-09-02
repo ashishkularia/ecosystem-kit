@@ -1,5 +1,23 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-09-02 — **`weekly-hygiene` commits on a branch and opens a PR; nothing writes
+  to `main` any more.** It used to commit `.memory/` straight to the local default
+  branch and never push, which put the checkout one commit ahead every Monday; the
+  next PR merge made `main` diverge, and `kit-propagate` refuses to run unless the
+  kit is on a synced `main`. 19 of 27 propagate runs aborted on exactly that — more
+  failures than successes, visible only in a cron log, clearable only by the owner
+  (Claude is barred from `main` by `guard_protected_merge`). The SCRIPT now cuts
+  `chore/hygiene-<date>`, the model commits there (its `--allowedTools` grant still
+  has no network and no safe-push), and the script pushes via safe-push and opens
+  the PR, then restores the default branch. New guards: skip unless on the default
+  branch, skip on uncommitted `.memory/` changes, skip while a hygiene branch is
+  pending, delete the branch when nothing was committed, and name a
+  pushed-but-PR-less orphan loudly rather than skipping that repo forever. The
+  dirty check is scoped to `.memory/` minus `cache/`: requiring a fully clean
+  tree would skip any repo with work in progress every week (meritick, on the
+  first real dry-run), and the run log lives in `cache/`, so counting either made
+  hygiene trip over its own feet.
+
 - 2026-09-01 — **Every profile now deploys its artifacts; the kit ships a seam, not
   a destination.** `artifact_sync` mirrored artifacts everywhere but POSTED them in
   only three of six repos: `artifacts.deploy_command` shipped empty in all seven
