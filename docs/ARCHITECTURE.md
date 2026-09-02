@@ -106,7 +106,9 @@ The rule is **over-split, never under-split**: an extra fragment costs at most a
 
 Mis-splitting is *not* a safe form of over-splitting: `&` stays literal after `>` so `2>&1` survives, since a mangled `git push 2>` changes which token reads as a destination and could flip a block into an allow.
 
-A local `git commit` on a protected branch remains allowed by design — `weekly-hygiene` commits `.memory/` on the default branch and never pushes. The **push** is the gate, because pushing is what makes work shared.
+A local `git commit` on a protected branch remains allowed by design. The **push** is the gate, because pushing is what makes work shared.
+
+That allowance used to have a named consumer: `weekly-hygiene` committed `.memory/` on the default branch and never pushed. It no longer does (2026-09-02), because committing to a local `main` nobody pushes is not free — it left the checkout one commit ahead every Monday, so the next PR merge made `main` *diverge*, and `kit-propagate` refuses to run unless the kit sits on a synced `main`. **19 of its runs aborted on exactly that, against 8 that worked.** Neither tool was wrong; the seam between them failed, silently, in a cron log. Hygiene now commits on `chore/hygiene-<date>` and opens a PR, so nothing writes to `main` at all.
 
 ## 5. Hook roster and wiring
 
@@ -333,6 +335,6 @@ Repo-level guardrails cannot stop a push issued outside any repo, so a thin mach
 | `gh` (GitHub CLI) | `~/.local/bin` | not kit-shipped, but a machine-layer **prerequisite**: the fallback path for PR and issue work when the GitHub MCP server is not connected. Without it a session that needs to open a PR has neither route. `bootstrap-machine.sh` carries the no-sudo install step and `verify_gh`. Authenticated ONCE with `gh auth login --with-token < ~/.secrets/github-pat` — the same PAT the other tools read, so no new credential is minted (only the interactive flow does that); the token is then also held in `~/.config/gh/hosts.yml` at 0600, so rotation touches both files. `verify_gh` runs `gh auth status` with `GH_TOKEN`/`GITHUB_TOKEN` unset, testing the PERSISTED credential rather than the caller's shell — presence is not usefulness, and an installed-but-unauthenticated `gh` strands the first session needing a PR |
 | `mcp-audit` | `~/.claude/bin` | read-only report of MCP servers with zero tool calls across the registered repos. Machine-scope by nature: `~/.mcp.json` is an ANCESTOR project-scope file, so with `enableAllProjectMcpServers` every server it names activates in every repo below it — on 2026-08-27 all five repos carried the same eight unused servers. Reports only; disabling is per-repo (`disabledMcpjsonServers`) and stays a human call |
 | repo registry | `~/.claude/repo-registry` | one checkout path per line; the shared roster both cron tools read (`pr-comment-poller register <path>` manages it) |
-| cron | user crontab | `weekly-hygiene` (Mon 06:07 — headless `.memory/` drain loops, doc-only, never pushes) and `pr-comment-poller` (every 15 min, 07–23h — headless `claude -p` run when new owner comments land on an open PR) |
+| cron | user crontab | `weekly-hygiene` (Mon 06:07 — headless `.memory/` drain loops, doc-only; commits on `chore/hygiene-<date>` and opens a PR, never touches the default branch) and `pr-comment-poller` (every 15 min, 07–23h — headless `claude -p` run when new owner comments land on an open PR) |
 
 `bootstrap-machine.sh` is idempotent and rebuilds all of the above from the kit checkout in one run; its manual steps (SSH key, PAT, Claude login, repo registration) each run a confirm → verify → retry loop, so a fresh machine converges in a single pass. Re-run it after a kit update to refresh the deployed tools.
