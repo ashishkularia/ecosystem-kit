@@ -7,9 +7,9 @@ the code. This hook closes that loop with a two-phase mechanism:
 
 PostToolUse (Edit|Write):
   If the edited file matches a profile ``source_patterns`` regex, record a
-  pending "code_change" flag in .memory/cache/pending.json and print a
-  one-line reminder. Flag names are accepted GENERICALLY, so /decide and
-  /idea style flows can drop "decision"/"discussion" flags the same way.
+  pending "code_change" flag in .memory/cache/pending/<session_id>.json and
+  print a one-line reminder. Flag names are accepted GENERICALLY, so /decide
+  and /idea style flows can drop "decision"/"discussion" flags the same way.
 
 Stop:
   If pending flags exist, BLOCK the stop until (a) each flag's roster file has
@@ -19,9 +19,15 @@ Stop:
   until BOTH conditions hold, so the diary gate survives flag clearance.
   Loop-guarded via stop_hook_active so it can never wedge a session.
 
+  The ledger is one file per session_id (from the hook payload), not one
+  shared file per checkout: two sessions on the same working tree each keep
+  their own pending flags, so a session that only reads is never blocked at
+  Stop for a source edit another session is mid-way through.
+
 CLI (for command flows — /decide, /idea, ...):
   python3 .claude/hooks/docs_contract.py flag <name> [example]
-  drops a generic pending flag (e.g. "decision", "discussion").
+  drops a generic pending flag (e.g. "decision", "discussion"), scoped to
+  CLAUDE_CODE_SESSION_ID (set by Claude Code in the Bash tool environment).
 
 Roster mapping:
   code_change -> .memory/CHANGELOG.md
@@ -43,7 +49,15 @@ sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 from _constants import MEMORY_DIR, PROJECT_ROOT, load_kit
 
 CACHE_DIR = os.path.join(MEMORY_DIR, "cache")
-PENDING_FILE = os.path.join(CACHE_DIR, "pending.json")
+
+
+def pending_dir() -> str:
+    return os.path.join(CACHE_DIR, "pending")
+
+
+def pending_file(session_id: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(session_id or "default"))
+    return os.path.join(pending_dir(), f"{safe}.json")
 
 FLAG_ROSTER = {
     "code_change": "CHANGELOG.md",
@@ -73,9 +87,9 @@ def matches_source(path: str) -> bool:
     return False
 
 
-def load_pending() -> dict:
+def load_pending(session_id: str) -> dict:
     try:
-        with open(PENDING_FILE, "r", encoding="utf-8") as f:
+        with open(pending_file(session_id), "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict) and isinstance(data.get("flags"), dict):
             return data
@@ -84,23 +98,23 @@ def load_pending() -> dict:
     return {"flags": {}, "first_flag_ts": None}
 
 
-def save_pending(data: dict) -> None:
+def save_pending(session_id: str, data: dict) -> None:
     try:
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        with open(PENDING_FILE, "w", encoding="utf-8") as f:
+        os.makedirs(pending_dir(), exist_ok=True)
+        with open(pending_file(session_id), "w", encoding="utf-8") as f:
             json.dump(data, f)
     except OSError:
         pass
 
 
-def set_flag(name: str, example: str = "") -> None:
-    data = load_pending()
+def set_flag(session_id: str, name: str, example: str = "") -> None:
+    data = load_pending(session_id)
     now = time.time()
     if name not in data["flags"]:
         data["flags"][name] = {"ts": now, "example": example}
     if data.get("first_flag_ts") is None:
         data["first_flag_ts"] = now
-    save_pending(data)
+    save_pending(session_id, data)
 
 
 def mtime(path: str) -> float:
@@ -200,8 +214,9 @@ def handle_post_tool(payload):
     # Never flag edits to the memory ledgers themselves.
     if norm.startswith(".memory/") or "/.memory/" in norm:
         sys.exit(0)
+    session_id = str(payload.get("session_id") or "default")
     if matches_source(norm):
-        set_flag("code_change", norm)
+        set_flag(session_id, "code_change", norm)
         msg = (
             f"Docs contract: source change to `{norm}` recorded. Before you "
             f"stop, add a line to .memory/CHANGELOG.md"
@@ -224,7 +239,8 @@ def handle_stop(payload):
     if payload.get("stop_hook_active"):
         sys.exit(0)
 
-    data = load_pending()
+    session_id = str(payload.get("session_id") or "default")
+    data = load_pending(session_id)
     flags = data.get("flags", {})
     first_ts = data.get("first_flag_ts")
     # first_flag_ts survives after roster flags are cleared so the diary gate
@@ -251,11 +267,11 @@ def handle_stop(payload):
 
     if not unsatisfied and diary_gate_ok:
         # Fully satisfied — reset the session ledger.
-        save_pending({"flags": {}, "first_flag_ts": None})
+        save_pending(session_id, {"flags": {}, "first_flag_ts": None})
         sys.exit(0)
 
     # Persist cleared flags but KEEP first_flag_ts while anything is owed.
-    save_pending(data)
+    save_pending(session_id, data)
 
     rel_diary = os.path.relpath(diary_path(), PROJECT_ROOT)
     reasons = []
@@ -303,7 +319,8 @@ def handle_pre_commit(payload):
     if not GIT_COMMIT_RE.search(command):
         sys.exit(0)
 
-    data = load_pending()
+    session_id = str(payload.get("session_id") or "default")
+    data = load_pending(session_id)
     flags = data.get("flags", {})
     owed = [n for n in ("decision", "discussion") if n in flags]
     if not owed:
@@ -359,7 +376,8 @@ if __name__ == "__main__":
         sys.exit(0)
     if len(sys.argv) >= 3 and sys.argv[1] in ("flag", "set-flag"):
         try:
-            set_flag(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
+            cli_session_id = os.environ.get("CLAUDE_CODE_SESSION_ID") or "default"
+            set_flag(cli_session_id, sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
             # Point the command flow at the diary the moment the decision is
             # made — writing it now is the whole difference between a diary
             # that reconstructs the day and one that recorded it.

@@ -1,5 +1,19 @@
 # DECISIONS — ecosystem-kit
 
+- 2026-09-26 — **A per-checkout ledger cannot represent per-session state, no
+  matter how carefully it's cleared.** `docs_contract`'s pending-flags file
+  was designed around one session editing a working tree at a time. Once a
+  project's own workflow puts two sessions on the same checkout — a
+  reviewer watching a builder, or two implementers on independent packages
+  of one branch — a session that only reads gets blocked at its own Stop
+  by flags a DIFFERENT session raised, because the file has no concept of
+  whose flag is whose. The fix is not a smarter clearing rule; it's giving
+  each session its own file, keyed by the `session_id` the harness already
+  puts on every hook payload (and exposes as `CLAUDE_CODE_SESSION_ID` for
+  the CLI flows that have no payload). Any future per-session engine state
+  should default to this shape rather than a shared file with a
+  same-session check, which only detects the SAME session changing, not
+  two DIFFERENT sessions colliding.
 - 2026-09-02 — **A local commit nobody pushes is not free.** `weekly-hygiene` committing to `main` and never pushing looked like the conservative choice — it touches no remote, so it cannot break anything. It broke `kit-propagate`, which needs the kit on a synced `main`, in 19 of 27 runs. The cost of an unpushed commit is not zero, it is deferred onto whoever next has to reconcile the branch — and here that was the owner, by hand, every week, because the same ruleset that keeps Claude off `main` also stops Claude from clearing it. Where a repo's whole workflow is branch-and-PR, the automation has to use it too; an exception for 'doc-only' changes is where the divergence came from.
 - 2026-09-02 — **The script cuts the branch and pushes; the model only commits.** The obvious implementation was to tell the headless model to branch, commit, push and open the PR. That would mean widening its `--allowedTools` to include network and `safe-push` — giving an unattended weekly cron agent push rights to five repos to fix a bookkeeping problem. Branch creation, push and PR are deterministic bash instead, and the model's grant is unchanged: local tools only. Capability follows the actual need, not the convenience of putting the whole task in one prompt.
 - 2026-09-02 — **A pushed branch with no PR must be named, never swallowed.** `kit-propagate` learned this on 2026-08-27: a transient network failure between push and PR-create left grade5 with an orphan branch, and because the pending-branch check matches on the branch, that repo was skipped as 'PR pending' for a PR that did not exist. Hygiene has the identical two-step and inherits the identical trap, so it reports the orphan with the branch name rather than logging a generic failure. The same reasoning gives it `restore_branch`, which says so when a checkout cannot be put back instead of silently leaving a repo parked on a hygiene branch.

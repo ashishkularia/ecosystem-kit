@@ -1,5 +1,17 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-09-26 — **`docs_contract`'s pending-flag ledger is now one file per
+  session (`.memory/cache/pending/<session_id>.json`), not one shared
+  `.memory/cache/pending.json` per checkout.** Two sessions on the same
+  working tree — a builder and a reviewer, or two implementers working
+  parallel packages — no longer see each other's flags: session B's Stop
+  never blocks on a source edit session A made but hasn't documented yet.
+  `handle_post_tool`/`handle_stop`/`handle_pre_commit` all key off
+  `payload["session_id"]` (the idiom `tdd_gate.py` and `context_attach.py`
+  already use); the CLI `flag`/`set-flag` path (`/decide`, `/idea`) reads
+  `CLAUDE_CODE_SESSION_ID` instead, since it has no hook payload. Reported
+  from mylantite: a reviewer session hit the shared-ledger block on every
+  tick while a separate implementing session's own green phase ran.
 - 2026-09-02 — **`weekly-hygiene` commits on a branch and opens a PR; nothing writes
   to `main` any more.** It used to commit `.memory/` straight to the local default
   branch and never push, which put the checkout one commit ahead every Monday; the

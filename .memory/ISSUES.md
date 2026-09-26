@@ -2,6 +2,19 @@
 
 Format: `- [ ] YYYY-MM-DD — description (context)`
 
+- [ ] 2026-09-26 — `artifact_sync.py`'s `commit` default is `true`: a published
+      Artifact mirror is committed onto whatever branch is currently checked
+      out, by pathspec, the moment it lands. In a project mid-way through a
+      large multi-package branch (mylantite's WP-MACHINERY), that means an
+      unrelated artifact publish would land inside whatever commit happens to
+      be forming next, on a delivery branch, in the middle of a package — not
+      what the default is for. mylantite opted out via `kit.json`'s
+      `"artifacts": {"commit": false}` (WP-MACHINERY item 0). Worth deciding
+      whether `commit: true` should stay the default for every profile, or
+      whether it should default off for a project already mid-branch with a
+      protected-branches policy this strict. *(Found via a downstream
+      project's own audit of its `.claude/kit.json`, not a bug report against
+      the kit itself.)*
 - [x] 2026-09-02 — RESOLVED (same day): `weekly-hygiene` committed to the local default branch and never pushed, so `main` went one commit ahead every Monday; the next PR merge on GitHub then made it DIVERGE, and `kit-propagate` aborts unless the kit checkout is on a synced `main`. **19 of 27 propagate runs aborted on exactly this** — propagation failed more often than it worked, visible only in `~/.claude/kit-propagate-cron.log`, and only the owner could clear it (Claude is barred from `main` by `guard_protected_merge`, correctly). Hygiene now commits on `chore/hygiene-<date>` and opens a PR. *(Found 2026-09-02 while the owner asked why they kept having to rebase by hand.)*
 - [ ] 2026-09-02 — `start-remote-sessions.sh` treats any existing `claude-<repo>` tmux session as healthy (`tmux has-session`), so a session WEDGED on a prompt — the first-run folder-trust dialog, most likely — satisfies the check forever: the launcher reports `[live] already running` and never relaunches it. The repo then has a session that looks fine and does nothing until the next reboot kills tmux. Observed on percale 2026-09-02: the owner trusted the folder in a different instance, and the tmux session sat on its already-rendered prompt with 0 history entries. Candidate fix: check the pane is not sitting on a prompt (`tmux capture-pane` for the trust dialog), or record session health rather than mere existence. Same failure class as the hygiene/propagate seam above — automation reporting success while doing nothing.
 - [x] 2026-08-01 — RESOLVED (same day): the kit now runs on itself — `.claude/kit.json` from `profiles/ecosystem-kit.json`, and `.claude/settings.json` wiring the full hook roster at `engine/hooks/_client.py` (the LIVE source; a copy would drift from the engine under development). `health-check.sh` derives the hooks dir from the wiring, so one script covers both layouts. Self-check went 55%/6 ERRs -> 100%/21 checks. Running it on itself immediately found a real bug (daemon staleness ignored `kit.json`).
