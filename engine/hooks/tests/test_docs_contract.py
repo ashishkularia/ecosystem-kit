@@ -2,13 +2,15 @@
 """Tests for docs_contract flag lifecycle — written against the SPEC contract:
 
   - PostToolUse Edit|Write on a file matching kit.json source_patterns records
-    a pending "code_change" flag in .memory/cache/pending.json.
+    a pending "code_change" flag in .memory/cache/pending/<session_id>.json.
   - Stop blocks (JSON {"decision": "block", ...} on stdout) while a pending
     flag's roster file (code_change -> CHANGELOG.md) is older than the flag,
     and — when kit.diary is true — until today's diary entry exists and was
     touched after the session's first flag.
   - Satisfied flags are cleared; stop_hook_active is a loop-guard (never
     block when true).
+  - Flags are scoped per session_id: one session's pending flag never blocks
+    a different session's Stop on the same working tree.
 
 Skipped automatically until engine-core's docs_contract.py lands.
 """
@@ -42,11 +44,6 @@ DIR_ATTRS = {
     "MEMORY_DIR": ".memory",
     "CACHE_DIR": ".memory/cache",
 }
-FILE_ATTRS = {
-    "PENDING_FILE": ".memory/cache/pending.json",
-    "PENDING_PATH": ".memory/cache/pending.json",
-    "PENDING_JSON": ".memory/cache/pending.json",
-}
 
 
 @unittest.skipUnless(HAVE_MODULE, "docs_contract.py not present yet (engine-core)")
@@ -69,7 +66,7 @@ class DocsContractLifecycleTest(unittest.TestCase):
 
         self._stack = contextlib.ExitStack()
         attrs = {}
-        for attr, rel in {**DIR_ATTRS, **FILE_ATTRS}.items():
+        for attr, rel in DIR_ATTRS.items():
             if hasattr(MOD, attr):
                 attrs[attr] = os.path.join(self.tmp, rel) if rel else self.tmp
         if hasattr(MOD, "load_kit"):
@@ -80,27 +77,27 @@ class DocsContractLifecycleTest(unittest.TestCase):
 
     # -- helpers ----------------------------------------------------------
 
-    def _post_edit(self, rel_path="src/app.py"):
+    def _post_edit(self, rel_path="src/app.py", session_id="test-session"):
         payload = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Edit",
             "tool_input": {"file_path": os.path.join(self.tmp, rel_path)},
-            "session_id": "test-session",
+            "session_id": session_id,
             "cwd": self.tmp,
         }
         return run_hook(MOD, payload)
 
-    def _stop(self, stop_hook_active=False):
+    def _stop(self, stop_hook_active=False, session_id="test-session"):
         payload = {
             "hook_event_name": "Stop",
             "stop_hook_active": stop_hook_active,
-            "session_id": "test-session",
+            "session_id": session_id,
             "cwd": self.tmp,
         }
         return run_hook(MOD, payload)
 
-    def _pending_text(self):
-        pending = os.path.join(self.cache, "pending.json")
+    def _pending_text(self, session_id="test-session"):
+        pending = os.path.join(self.cache, "pending", f"{session_id}.json")
         if not os.path.exists(pending):
             return ""
         with open(pending, "r", encoding="utf-8") as f:
@@ -169,6 +166,23 @@ class DocsContractLifecycleTest(unittest.TestCase):
         code, out, _err = self._stop()
         self.assertEqual(code, 0)
         self.assertFalse(self._stop_blocks(out))
+
+    def test_flags_are_scoped_per_session(self):
+        self._post_edit("src/app.py", session_id="session-a")
+
+        code, out, err = self._stop(session_id="session-b")
+        self.assertEqual(code, 0, err)
+        self.assertFalse(
+            self._stop_blocks(out),
+            f"session B must not be blocked by session A's pending flag, got: {out!r}",
+        )
+
+        code, out, err = self._stop(session_id="session-a")
+        self.assertEqual(code, 0, err)
+        self.assertTrue(
+            self._stop_blocks(out),
+            f"session A's own flag must still block its own Stop, got: {out!r}",
+        )
 
 
 if __name__ == "__main__":

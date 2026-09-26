@@ -68,7 +68,6 @@ class DiaryScopeTestBase(unittest.TestCase):
             PROJECT_ROOT=self.tmp,
             MEMORY_DIR=self.memory,
             CACHE_DIR=self.cache,
-            PENDING_FILE=os.path.join(self.cache, "pending.json"),
             load_kit=lambda force_reload=False: kit,
         ))
 
@@ -132,6 +131,7 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": command},
+            "session_id": "test-session",
             "cwd": self.tmp,
         }
 
@@ -144,7 +144,7 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
         return path
 
     def test_pending_decision_with_stale_diary_blocks_the_commit(self):
-        MOD.set_flag("decision", "chose X over Y")
+        MOD.set_flag("test-session", "decision", "chose X over Y")
         code, out, err = run_hook(MOD, self.commit_payload())
         self.assertEqual(code, 2)
         self.assertIn("diary", (err + out).lower())
@@ -152,7 +152,7 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
         self.assertIn(f"{TODAY}-fix-hygiene-findings-trio.md", err + out)
 
     def test_writing_the_diary_unblocks_the_commit(self):
-        MOD.set_flag("decision", "chose X over Y")
+        MOD.set_flag("test-session", "decision", "chose X over Y")
         self.touch_diary()
         code, _, _ = run_hook(MOD, self.commit_payload())
         self.assertEqual(code, 0)
@@ -164,11 +164,11 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
         # fast path, since /decide writes the diary in the same turn. Repeated
         # because the original bug was timing-dependent and passed ~7 runs in 8.
         for i in range(25):
-            MOD.save_pending({"flags": {}, "first_flag_ts": None})
+            MOD.save_pending("test-session", {"flags": {}, "first_flag_ts": None})
             path = MOD.diary_path()
             if os.path.exists(path):
                 os.unlink(path)
-            MOD.set_flag("decision", f"call {i}")
+            MOD.set_flag("test-session", "decision", f"call {i}")
             self.touch_diary()
             code, _, err = run_hook(MOD, self.commit_payload())
             self.assertEqual(code, 0, f"blocked on iteration {i}: {err}")
@@ -176,18 +176,18 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
     def test_diary_older_than_the_decision_still_blocks(self):
         # An entry written BEFORE the decision does not record it.
         self.touch_diary(when=time.time() - 3600)
-        MOD.set_flag("decision", "chose X over Y")
+        MOD.set_flag("test-session", "decision", "chose X over Y")
         code, _, _ = run_hook(MOD, self.commit_payload())
         self.assertEqual(code, 2)
 
     def test_code_change_alone_never_blocks_a_commit(self):
         # Ordinary commits must not be interrupted — code_change rides to Stop.
-        MOD.set_flag("code_change", "src/app.py")
+        MOD.set_flag("test-session", "code_change", "src/app.py")
         code, _, _ = run_hook(MOD, self.commit_payload())
         self.assertEqual(code, 0)
 
     def test_non_commit_bash_commands_pass_through(self):
-        MOD.set_flag("decision", "chose X over Y")
+        MOD.set_flag("test-session", "decision", "chose X over Y")
         for cmd in ("git status", "git add -A", "ls",
                     # `git commit` as an ARGUMENT is not a commit — this hook
                     # blocks, so a loose substring match would wedge unrelated
@@ -197,7 +197,7 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
             self.assertEqual(code, 0, cmd)
 
     def test_commit_after_a_command_separator_is_caught(self):
-        MOD.set_flag("decision", "chose X over Y")
+        MOD.set_flag("test-session", "decision", "chose X over Y")
         for cmd in ("git add -A && git commit -m 'x'",
                     "cd sub; git commit -m 'x'",
                     "git add -A\ngit commit -m 'x'"):
@@ -205,7 +205,7 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
             self.assertEqual(code, 2, cmd)
 
     def test_git_dash_c_commit_form_is_caught(self):
-        MOD.set_flag("discussion", "rejected approach B")
+        MOD.set_flag("test-session", "discussion", "rejected approach B")
         code, _, _ = run_hook(MOD, self.commit_payload("git -C /repo commit -m 'x'"))
         self.assertEqual(code, 2)
 
@@ -217,7 +217,7 @@ class PreCommitCheckpointTest(DiaryScopeTestBase):
         kit = make_kit(diary=False)
         kit["diary_scope"] = "branch"
         with _support.patched(MOD, load_kit=lambda force_reload=False: kit):
-            MOD.set_flag("decision", "chose X over Y")
+            MOD.set_flag("test-session", "decision", "chose X over Y")
             code, _, _ = run_hook(MOD, self.commit_payload())
             self.assertEqual(code, 0)
 
