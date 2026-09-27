@@ -22,7 +22,10 @@ Stop:
   The ledger is one file per session_id (from the hook payload), not one
   shared file per checkout: two sessions on the same working tree each keep
   their own pending flags, so a session that only reads is never blocked at
-  Stop for a source edit another session is mid-way through.
+  Stop for a source edit another session is mid-way through. An event
+  without a session_id records and checks nothing. A satisfied ledger file
+  is deleted, and the pre-session shared .memory/cache/pending.json is
+  removed on the first write.
 
 CLI (for command flows — /decide, /idea, ...):
   python3 .claude/hooks/docs_contract.py flag <name> [example]
@@ -56,8 +59,12 @@ def pending_dir() -> str:
 
 
 def pending_file(session_id: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(session_id or "default"))
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", session_id)
     return os.path.join(pending_dir(), f"{safe}.json")
+
+
+def session_of(payload) -> str:
+    return str(payload.get("session_id") or "")
 
 FLAG_ROSTER = {
     "code_change": "CHANGELOG.md",
@@ -100,8 +107,16 @@ def load_pending(session_id: str) -> dict:
 
 def save_pending(session_id: str, data: dict) -> None:
     try:
+        legacy = os.path.join(CACHE_DIR, "pending.json")
+        if os.path.exists(legacy):
+            os.remove(legacy)
+        path = pending_file(session_id)
+        if not data.get("flags") and data.get("first_flag_ts") is None:
+            if os.path.exists(path):
+                os.remove(path)
+            return
         os.makedirs(pending_dir(), exist_ok=True)
-        with open(pending_file(session_id), "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f)
     except OSError:
         pass
@@ -214,8 +229,8 @@ def handle_post_tool(payload):
     # Never flag edits to the memory ledgers themselves.
     if norm.startswith(".memory/") or "/.memory/" in norm:
         sys.exit(0)
-    session_id = str(payload.get("session_id") or "default")
-    if matches_source(norm):
+    session_id = session_of(payload)
+    if session_id and matches_source(norm):
         set_flag(session_id, "code_change", norm)
         msg = (
             f"Docs contract: source change to `{norm}` recorded. Before you "
@@ -239,7 +254,9 @@ def handle_stop(payload):
     if payload.get("stop_hook_active"):
         sys.exit(0)
 
-    session_id = str(payload.get("session_id") or "default")
+    session_id = session_of(payload)
+    if not session_id:
+        sys.exit(0)
     data = load_pending(session_id)
     flags = data.get("flags", {})
     first_ts = data.get("first_flag_ts")
@@ -319,7 +336,9 @@ def handle_pre_commit(payload):
     if not GIT_COMMIT_RE.search(command):
         sys.exit(0)
 
-    session_id = str(payload.get("session_id") or "default")
+    session_id = session_of(payload)
+    if not session_id:
+        sys.exit(0)
     data = load_pending(session_id)
     flags = data.get("flags", {})
     owed = [n for n in ("decision", "discussion") if n in flags]
@@ -376,8 +395,9 @@ if __name__ == "__main__":
         sys.exit(0)
     if len(sys.argv) >= 3 and sys.argv[1] in ("flag", "set-flag"):
         try:
-            cli_session_id = os.environ.get("CLAUDE_CODE_SESSION_ID") or "default"
-            set_flag(cli_session_id, sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
+            cli_session_id = os.environ.get("CLAUDE_CODE_SESSION_ID") or ""
+            if cli_session_id:
+                set_flag(cli_session_id, sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
             # Point the command flow at the diary the moment the decision is
             # made — writing it now is the whole difference between a diary
             # that reconstructs the day and one that recorded it.

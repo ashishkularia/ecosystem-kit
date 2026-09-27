@@ -33,3 +33,14 @@ engine tests green after both fixes.
 Added `test_flags_are_scoped_per_session`: session A posts a source edit,
 session B's Stop must not block, session A's own Stop still must. Fails
 without this change (single shared ledger), passes after.
+
+## 2026-09-27 — review fix-up before merge
+
+The mylantite reviewer found three gaps. A payload or CLI call without a
+session id fell back to a shared `default` ledger, which recreates the
+cross-session block for any session-less event and leaves CLI flags that
+no real session's Stop ever reads; it now records and checks nothing. A
+satisfied Stop wrote an empty file per session forever; it now deletes the
+file. The pre-change shared `pending.json` stayed on disk in every
+installed repo; the first write now removes it. One red test per gap, then
+the full suite 214/214. The kit has no CI, so that local run is the gate.

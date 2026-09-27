@@ -82,18 +82,20 @@ class DocsContractLifecycleTest(unittest.TestCase):
             "hook_event_name": "PostToolUse",
             "tool_name": "Edit",
             "tool_input": {"file_path": os.path.join(self.tmp, rel_path)},
-            "session_id": session_id,
             "cwd": self.tmp,
         }
+        if session_id is not None:
+            payload["session_id"] = session_id
         return run_hook(MOD, payload)
 
     def _stop(self, stop_hook_active=False, session_id="test-session"):
         payload = {
             "hook_event_name": "Stop",
             "stop_hook_active": stop_hook_active,
-            "session_id": session_id,
             "cwd": self.tmp,
         }
+        if session_id is not None:
+            payload["session_id"] = session_id
         return run_hook(MOD, payload)
 
     def _pending_text(self, session_id="test-session"):
@@ -183,6 +185,32 @@ class DocsContractLifecycleTest(unittest.TestCase):
             self._stop_blocks(out),
             f"session A's own flag must still block its own Stop, got: {out!r}",
         )
+
+    def _pending_files(self):
+        pending_dir = os.path.join(self.cache, "pending")
+        return sorted(os.listdir(pending_dir)) if os.path.isdir(pending_dir) else []
+
+    def test_a_payload_without_session_id_neither_flags_nor_blocks(self):
+        self._post_edit("src/app.py", session_id=None)
+        self.assertEqual(self._pending_files(), [])
+
+        self._post_edit("src/app.py", session_id="session-a")
+        code, out, err = self._stop(session_id=None)
+        self.assertEqual(code, 0, err)
+        self.assertFalse(self._stop_blocks(out), f"a session-less Stop must not be blocked, got: {out!r}")
+
+    def test_a_satisfied_stop_removes_its_session_ledger(self):
+        self._post_edit("src/app.py", session_id="session-a")
+        self._satisfy_roster()
+        self._stop(session_id="session-a")
+        self.assertEqual(self._pending_files(), [])
+
+    def test_the_shared_checkout_ledger_is_removed(self):
+        legacy = os.path.join(self.cache, "pending.json")
+        with open(legacy, "w", encoding="utf-8") as f:
+            f.write('{"flags": {"code_change": {"ts": 1, "example": "x"}}, "first_flag_ts": 1}')
+        self._post_edit("src/app.py", session_id="session-a")
+        self.assertFalse(os.path.exists(legacy))
 
 
 if __name__ == "__main__":
