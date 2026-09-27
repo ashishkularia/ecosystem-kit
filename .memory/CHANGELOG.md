@@ -12,6 +12,14 @@
   `CLAUDE_CODE_SESSION_ID` instead, since it has no hook payload. Reported
   from mylantite: a reviewer session hit the shared-ledger block on every
   tick while a separate implementing session's own green phase ran.
+  An event with no session id (payload or CLI) records and checks nothing,
+  rather than sharing a `default` ledger that would recreate the cross-session
+  block; a satisfied Stop deletes its session file; the old shared
+  `pending.json` is removed on the first write. Three tests cover these
+  (`test_a_payload_without_session_id_neither_flags_nor_blocks`,
+  `test_a_satisfied_stop_removes_its_session_ledger`,
+  `test_the_shared_checkout_ledger_is_removed`), red first; the suite is
+  214/214 locally (the kit has no CI).
 - 2026-09-02 — **`weekly-hygiene` commits on a branch and opens a PR; nothing writes
   to `main` any more.** It used to commit `.memory/` straight to the local default
   branch and never push, which put the checkout one commit ahead every Monday; the
