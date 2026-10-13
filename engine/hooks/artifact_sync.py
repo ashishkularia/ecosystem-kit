@@ -302,16 +302,7 @@ def current_branch():
 
 
 def protected_checkout():
-    """The protected branch PROJECT_ROOT has checked out, else None.
-
-    PROJECT_ROOT is the checkout whose `.claude/` the session loaded, not the
-    worktree the session is editing in. A session rooted at the main checkout
-    therefore writes the mirror into main's working tree, where, with nothing
-    committing it (`artifacts.commit` false, or commit() refusing on a protected
-    branch), it sits as uncommitted edits to tracked files and blocks the next
-    `git pull` (found on mylantite, 2026-10-14). Unknown is not protected: a
-    non-repo or a git failure falls through to the normal write.
-    """
+    """The protected branch PROJECT_ROOT has checked out, else None."""
     branch = current_branch()
     protected = load_kit().get("protected_branches") or []
     return branch if branch and branch in protected else None
