@@ -1,5 +1,15 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-14 — **`artifact_sync` no longer writes the mirror into a checkout
+  that has a protected branch checked out.** The hook's root is the checkout
+  whose `.claude/` the session loaded, so a session rooted at main mirrored
+  into main's working tree as uncommitted edits to tracked files, which made
+  the next `git pull` refuse. `main()` now returns before any write on a
+  protected branch with `mirror NOT written; publish from a worktree-rooted
+  session or commit the mirror in a PR`, plus the scratchpad source path.
+  Unknown branch, detached HEAD and projects without `protected_branches` are
+  unchanged. `ProtectedCheckoutTest` (7 cases, three mutants killed).
+
 - 2026-09-26 — **`docs_contract`'s pending-flag ledger is now one file per
   session (`.memory/cache/pending/<session_id>.json`), not one shared
   `.memory/cache/pending.json` per checkout.** Two sessions on the same

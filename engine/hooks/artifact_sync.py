@@ -295,6 +295,28 @@ def gitignored(path):
     return r is not None and r.returncode == 0
 
 
+def current_branch():
+    """Name of the branch PROJECT_ROOT has checked out; "" when git cannot say."""
+    head = git(["rev-parse", "--abbrev-ref", "HEAD"], PROJECT_ROOT)
+    return (head.stdout.strip() if head and head.returncode == 0 else "") or ""
+
+
+def protected_checkout():
+    """The protected branch PROJECT_ROOT has checked out, else None.
+
+    PROJECT_ROOT is the checkout whose `.claude/` the session loaded, not the
+    worktree the session is editing in. A session rooted at the main checkout
+    therefore writes the mirror into main's working tree, where, with nothing
+    committing it (`artifacts.commit` false, or commit() refusing on a protected
+    branch), it sits as uncommitted edits to tracked files and blocks the next
+    `git pull` (found on mylantite, 2026-10-14). Unknown is not protected: a
+    non-repo or a git failure falls through to the normal write.
+    """
+    branch = current_branch()
+    protected = load_kit().get("protected_branches") or []
+    return branch if branch and branch in protected else None
+
+
 def commit(paths, message, conf):
     """Commit ONLY `paths`. Returns a status string for the report.
 
@@ -310,8 +332,7 @@ def commit(paths, message, conf):
     if not inside or inside.returncode != 0:
         return "not committed (not a git work tree)"
 
-    head = git(["rev-parse", "--abbrev-ref", "HEAD"], PROJECT_ROOT)
-    branch = (head.stdout.strip() if head and head.returncode == 0 else "") or ""
+    branch = current_branch()
     protected = load_kit().get("protected_branches") or []
     if branch in protected:
         return "NOT COMMITTED — on protected branch '%s'; commit it on a branch" % branch
@@ -424,6 +445,24 @@ def main():
 
     conf = cfg()
     if not conf["enabled"]:
+        sys.exit(0)
+
+    guarded = protected_checkout()
+    if guarded:
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": "\n".join([
+                    "Artifact published, but NOT mirrored into the repo (ecosystem-kit artifact_sync):",
+                    "  mirror NOT written; publish from a worktree-rooted session or commit the mirror in a PR",
+                    "  reason: this checkout is on protected branch '%s'; writing the mirror here "
+                    "would leave uncommitted edits on it and block the next pull" % guarded,
+                    "  the source is still at %s (session scratchpad, wiped when the session ends)"
+                    % source_path,
+                    "  live: %s" % url,
+                ]),
+            }
+        }))
         sys.exit(0)
 
     source_text = read_text(source_path)

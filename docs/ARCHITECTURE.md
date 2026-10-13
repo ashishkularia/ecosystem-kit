@@ -176,6 +176,21 @@ success. Found on DevContainer, whose `.gitignore` line 1 is `*` with explicit
 un-ignores: the hook wrote `docs/artifacts/`, said "mirrored into the repo", and
 git discarded all of it — present locally, gone on a fresh clone.
 
+**A write into a protected checkout is not durability either (2026-10-14).**
+`PROJECT_ROOT` is the checkout whose `.claude/` the session loaded
+(`realpath(__file__)`; the daemon socket is per checkout), not the worktree the
+session is editing in. A session rooted at the main checkout therefore mirrored
+into main's working tree, where nothing committed it — `artifacts.commit` false,
+or `commit()` refusing on a protected branch *after* the write — and the
+uncommitted edits to tracked files made the owner's next `git pull` refuse.
+`main()` now asks `protected_checkout()` before writing anything: on a branch in
+`protected_branches` it writes nothing and says so (`mirror NOT written; publish
+from a worktree-rooted session or commit the mirror in a PR`), naming the
+scratchpad source path, because that file is wiped when the session ends and a
+silent skip would lose the artifact's only on-disk copy. Unknown is not
+protected: a non-repo, a git failure or a detached HEAD falls through to the
+normal write, and a project with no `protected_branches` is unchanged.
+
 **Reaching its host.** Mirroring makes an artifact durable, not *reachable*. A
 repo that serves `docs/artifacts/` somewhere would otherwise need a human to
 remember a second command after every publish — the kind of step that silently

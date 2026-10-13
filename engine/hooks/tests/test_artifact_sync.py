@@ -411,6 +411,106 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class ProtectedCheckoutTest(SyncTestBase):
+    """A checkout on a protected branch is never written to.
+
+    PROJECT_ROOT is the checkout whose .claude/ the session loaded. A session
+    rooted at the main checkout would write the mirror into main's working tree,
+    where nothing commits it and it blocks the next pull. The skip must name its
+    consequence, or the mirror drifts in silence.
+    """
+
+    def _git_on(self, branch, returncode=0):
+        class R:
+            def __init__(self, out, code):
+                self.stdout, self.stderr, self.returncode = out, "", code
+
+        def fake(args, cwd):
+            if returncode is None:
+                return None
+            return R(branch + "\n", returncode)
+
+        self._orig_git, MOD.git = MOD.git, fake
+        self.addCleanup(setattr, MOD, "git", self._orig_git)
+
+    def _protected(self, names):
+        self._orig_kit, MOD.load_kit = MOD.load_kit, lambda: {"protected_branches": names}
+        self.addCleanup(setattr, MOD, "load_kit", self._orig_kit)
+
+    def _publish(self):
+        import io
+        src = self.source("note.md", "# Hello\n")
+        stdin, stdout = sys.stdin, sys.stdout
+        sys.stdin = io.StringIO(json.dumps(payload(src)))
+        sys.stdout = io.StringIO()
+        try:
+            try:
+                MOD.main()
+            except SystemExit as e:
+                code = e.code
+            out = sys.stdout.getvalue()
+        finally:
+            sys.stdin, sys.stdout = stdin, stdout
+        return src, code, out
+
+    def test_protected_branch_writes_nothing(self):
+        self._protected(["main", "master"])
+        self._git_on("main")
+        _, code, _ = self._publish()
+        self.assertEqual(code, 0)
+        self.assertEqual(self.dirs(), [])
+        self.assertFalse(os.path.exists(os.path.join(self.artifacts_root, "INDEX.md")))
+        self.assertFalse(os.path.exists(os.path.join(self.artifacts_root, "index.html")))
+
+    def test_skip_names_the_consequence_the_branch_the_source_and_the_url(self):
+        self._protected(["main", "master"])
+        self._git_on("main")
+        src, _, out = self._publish()
+        text = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("mirror NOT written; publish from a worktree-rooted session or commit the mirror in a PR", text)
+        self.assertIn("protected branch 'main'", text)
+        self.assertIn(src, text, "the scratchpad source is wiped on exit, so say where it is")
+        self.assertIn("https://claude.ai/code/artifact/abc-123", text)
+
+    def test_commit_enabled_does_not_unprotect_the_checkout(self):
+        self._protected(["main"])
+        self._git_on("main")
+        MOD.cfg = lambda: {"enabled": True, "dir": "docs/artifacts",
+                           "commit": True, "commit_type": "docs",
+                           "deploy_command": "", "deploy_timeout": 5}
+        self._publish()
+        self.assertEqual(self.dirs(), [])
+
+    def test_feature_branch_still_mirrors(self):
+        self._protected(["main", "master"])
+        self._git_on("fix/something")
+        _, code, out = self._publish()
+        self.assertEqual(code, 0)
+        self.assertEqual(self.dirs(), ["sample-title"])
+        self.assertNotIn("NOT written", out)
+
+    def test_no_protected_list_still_mirrors(self):
+        self._protected([])
+        self._git_on("main")
+        self._publish()
+        self.assertEqual(self.dirs(), ["sample-title"])
+
+    def test_unknown_branch_fails_open(self):
+        for failure in (None, 128):
+            with self.subTest(git=failure):
+                self._protected(["main"])
+                self._git_on("", returncode=failure)
+                self._publish()
+                self.assertEqual(self.dirs(), ["sample-title"])
+                shutil.rmtree(self.artifacts_root, True)
+
+    def test_detached_head_is_not_protected(self):
+        self._protected(["main"])
+        self._git_on("HEAD")
+        self._publish()
+        self.assertEqual(self.dirs(), ["sample-title"])
+
+
 class ViewablePageTest(SyncTestBase):
     """Every artifact must be openable in a browser and servable statically.
 
