@@ -1,5 +1,14 @@
 # DECISIONS — ecosystem-kit
 
+- 2026-10-14 — **A hook that mirrors into "the repo" must say which checkout
+  it means, and refuse the ones it cannot make durable.** `artifact_sync`
+  resolves the repo from its own file, so a session rooted at main writes into
+  main however it was launched, and `commit()`'s protected-branch refusal ran
+  after the write, leaving the files behind. The skip is on the write, not the
+  commit, and it names its consequence because the alternative failure is a
+  mirror that quietly stops being updated. A `kit.json` key would not help:
+  `commit`/`dir`/`enabled` either keep the bug or lose the mirror.
+
 - 2026-09-26 — **A per-checkout ledger cannot represent per-session state, no
   matter how carefully it's cleared.** `docs_contract`'s pending-flags file
   was designed around one session editing a working tree at a time. Once a

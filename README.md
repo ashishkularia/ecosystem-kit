@@ -40,7 +40,7 @@ To change an artifact, edit its source file in the repo and republish it with it
 npx serve docs/artifacts     # or: python3 -m http.server -d docs/artifacts
 ```
 
-By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. Configure with the `artifacts` key in `kit.json`.
+By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. On a checkout that has a protected branch checked out the mirror is not written at all (the hook says so and names where the scratchpad source is): publish from a worktree-rooted session, or commit the mirror in a PR. Configure with the `artifacts` key in `kit.json`.
 
 **They also get posted.** Mirroring makes an artifact durable, not reachable, so every profile points `artifacts.deploy_command` at `~/.claude/bin/deploy-artifacts` — a dispatcher that hands the tree to whatever this machine serves artifacts with. Configure the destination once per machine:
 
