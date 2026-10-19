@@ -1,5 +1,25 @@
 # DECISIONS — ecosystem-kit
 
+- 2026-10-20 — **The kit edits a project-owned file only inside explicit markers,
+  and treats any doubt as "leave it alone".** Owner approved letting the kit
+  rewrite CLAUDE.md after the 2026-10-19 scratch rule reached five repos'
+  machinery but not their policy text. Calls made: (1) *The template is the
+  source of truth* — blocks are delimited in `CLAUDE.md.template` itself, so
+  there is no second copy to drift and fresh installs already carry the markers.
+  (2) *Markers over heading-matching* — a heading can be renamed or reworded by
+  the project; a marker pair is an explicit, visible statement of ownership, and
+  the begin line says in plain words that edits inside are overwritten. (3)
+  *Append once when absent* — otherwise the five repos could never adopt a
+  block. Appending at the end, not before "Session helpers", because anchoring
+  on a heading the project may have renamed adds a second guess for no gain.
+  (4) *Anything ambiguous is KEPT, not repaired* (lone/duplicate/nested marker,
+  CRLF): the file is five repos' hand-written policy, and a wrong guess there
+  is worse than a missed update. (5) *Warn, never abort* — the engine update is
+  already applied by then. (6) *Stage it in kit-propagate* — a rewrite outside
+  `.claude/` is silently dropped otherwise (reproduced: "CLAUDE.md staged: 0").
+  Not done on purpose: no `health-check` rule for blocks (it runs in the target
+  without the template and would have to hard-code block names).
+
 - 2026-10-20 — **A fail-closed blocker may carry an exemption only if the
   exemption parses a grammar so small that the line cannot be read two ways, and
   only for the whole line.** Owner approved the narrow `rm -rf` exemption for

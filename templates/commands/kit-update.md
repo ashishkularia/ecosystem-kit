@@ -9,8 +9,11 @@ Update this repo's installed ecosystem from the kit.
    `.claude/kit-version` and skim the kit's git log for what changed between
    them.
 2. Run `bash <kit>/installer/update.sh <this-repo-abs-path>` — it refreshes
-   the engine hooks and skills only; it never touches `.memory/`,
-   `.claude/kit.json`, `commands/`, or `agents/`.
+   the engine hooks, skills, and the kit-managed blocks of `CLAUDE.md`
+   (text between `<!-- kit:begin NAME -->` / `<!-- kit:end NAME -->` lines —
+   everything else in that file is preserved byte for byte); it never touches
+   `.memory/` or `.claude/kit.json`, and it only refreshes a `commands/` or
+   `agents/` file that is still identical to the kit template.
 3. Review the result: read update.sh's change report, `git diff` the
    `.claude/` tree, and read any changed hook before trusting it.
 4. Sanity-check the wiring: every non-underscore hook in `.claude/hooks/`

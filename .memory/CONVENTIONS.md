@@ -4,7 +4,7 @@
 - Shell: bash with `set -euo pipefail` (`health-check.sh` deliberately drops `-e` — its checks are expected to fail without aborting the run). `shopt -s nullglob` before glob loops.
 - JSON in shell: always python3 heredocs/one-liners, never jq (not installed on hosts).
 - Hook wiring: cwd-independent commands only — `python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/_client.py" <hook>` — and ONLY in `.claude/settings.json`. No hooks blocks in settings.local.json or user-level settings. Never bare-relative (`python3 .claude/...`): it resolves against the shell's cwd and fails whenever a session's persistent cwd drifts out of the repo root.
-- Install semantics: copy, never symlink. Engine overwrite is OK (kit-owned); knowledge (`.memory/`, `kit.json`, existing `settings.json`, `CLAUDE.md`) is never clobbered.
+- Install semantics: copy, never symlink. Engine overwrite is OK (kit-owned); knowledge (`.memory/`, `kit.json`, existing `settings.json`) is never clobbered, and neither is `CLAUDE.md` EXCEPT the text between `<!-- kit:begin NAME -->` / `<!-- kit:end NAME -->` marker lines, which `update.sh` syncs from the template (`installer/kit_blocks.py`; owner-approved 2026-10-20). A new kit-wide CLAUDE.md policy goes in the template INSIDE a block, or it reaches new installs only. Block bodies carry no `{{placeholders}}` — update.sh does not render them.
 - Dates: ISO `YYYY-MM-DD` everywhere — DECISIONS entries, diary filenames, changelogs.
 - No secrets in any kit file or installed file, ever.
 - Protected branches: Claude never merges/pushes to main/master; the owner merges.

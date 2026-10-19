@@ -7,8 +7,8 @@ still the owner's. Cron runs it daily; for every registered repo whose
 kit-version stamp is behind kit main, it produces ONE update PR:
 
     pull kit main → per repo: worktree off origin default branch
-    → installer/update.sh (engine + skills + stamp; its never-touch
-      contract is preserved)
+    → installer/update.sh (engine + skills + stamp + the kit-managed blocks
+      of CLAUDE.md; the rest of its never-touch contract is preserved)
     → policy patches (explicit, idempotent, listed below)
     → GATE: py_compile AND import-test every hook in the worktree —
       a repo with project-local engine additions (e.g. DevContainer's
@@ -370,7 +370,7 @@ def create_pr(owner, repo, head, base, old, new, files):
         "title": f"chore(kit): update from kit {old} -> {new}",
         "head": head, "base": base,
         "body": (f"Automated kit propagation ({old} -> {new}) by `kit-propagate`.\n\n"
-                 f"Applied: `installer/update.sh` (engine + skills + stamp) + policy patches "
+                 f"Applied: `installer/update.sh` (engine + skills + CLAUDE.md kit blocks + stamp) + policy patches "
                  f"(attribution off). Gate passed: every hook compiles AND imports in this "
                  f"worktree.\n\nChanged:\n" + "\n".join(f"- {f}" for f in files) +
                  "\n\nMerge is yours; the next propagation run skips this repo while this PR's "
@@ -501,6 +501,14 @@ def main():
             up = run(["bash", str(KIT / "installer" / "update.sh"), str(wt)], check=False)
             if up.returncode != 0:
                 log(f"[FAIL] {name}: update.sh: {up.stderr.strip()[:200]}"); continue
+            # update.sh rewrites the kit-managed blocks of CLAUDE.md, a root-level
+            # file outside .claude/ — stage it like any policy patch or the work is
+            # silently discarded with the worktree (the .gitattributes trap,
+            # 2026-08-29). Tracked files only: `git add` REFUSES an ignored
+            # untracked path and would take the whole repo down.
+            if run(["git", "-C", str(wt), "ls-files", "--error-unmatch", "CLAUDE.md"],
+                   check=False).returncode == 0:
+                touched.add("CLAUDE.md")
             patch_attribution(wt)
             wired = patch_hook_wiring(wt)
             if wired:

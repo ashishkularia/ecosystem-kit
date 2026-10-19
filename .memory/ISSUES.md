@@ -2,7 +2,16 @@
 
 Format: `- [ ] YYYY-MM-DD — description (context)`
 
-- [ ] 2026-10-19 — The kit has no way to deliver a `CLAUDE.md` TEMPLATE change to
+- [ ] 2026-10-20 — OWNER ACTION: redeploy `tools/kit-propagate` before the next
+      cron run after merging the `feature/claude-md-kit-blocks` PR
+      (`bash tools/bootstrap-machine.sh`). The cron job runs the DEPLOYED copy in
+      `~/.claude/bin/` (verified byte-identical to `tools/` on 2026-10-20), which
+      does not yet stage `CLAUDE.md`. Until redeployed, a propagation run applies
+      the rest of update.sh but the CLAUDE.md block is rewritten in a throwaway
+      worktree and silently dropped — and because the stamp then advances, that
+      repo is not revisited for the block until the NEXT kit commit.
+- [x] 2026-10-19 — [RESOLVED 2026-10-20, owner-approved: marked kit-owned blocks,
+      `installer/kit_blocks.py`; `kit-propagate` stages CLAUDE.md] The kit has no way to deliver a `CLAUDE.md` TEMPLATE change to
       an already-installed project: `update.sh` never touches CLAUDE.md and
       `kit-propagate`/`/kit-update`/`/retro` have no handling for it. A policy
       added to `templates/CLAUDE.md.template` (e.g. the 2026-10-19 scratch rule)

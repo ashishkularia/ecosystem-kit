@@ -65,6 +65,7 @@ commands, branch types, domain map).
   relevance where it is used. Genuinely project-bound things — this repo's
   schema, business rules, infrastructure names — stay here.
 
+<!-- kit:begin scratch (managed by ecosystem-kit update.sh: edits inside these markers are overwritten; put project-specific policy outside them) -->
 ## Scratch work lives in the repo, never in /tmp
 
 Rough or disposable work — throwaway scripts, captured command output,
@@ -87,6 +88,7 @@ owner explicitly asks.
 - Hooks treat it as non-source: writing there never raises a docs-contract
   flag or a TDD gate. `secret_scanner` still reads it — no secrets in scratch
   either.
+<!-- kit:end scratch -->
 
 ## Session helpers
 
