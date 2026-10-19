@@ -7,7 +7,9 @@ Exit 2 = block (reason on stderr). Exit 0 = allow.
 Checks (project-agnostic; patterns live in _constants.py):
   - Destructive git operations (force push, hard reset, clean, checkout/restore .)
   - Staging secrets or env files (git add .env / -A / --all / .)
-  - Destructive filesystem operations (rm -rf, chmod 777)
+  - Destructive filesystem operations (rm -rf, chmod 777) — except `rm -rf`
+    of literal paths strictly inside .claude/scratch/, and only when the whole
+    command line is nothing but such removals (see scratch_cleanup_only)
   - Destructive database operations, incl. WHERE-less DELETE/UPDATE
   - Chained commands (&&, ||, ;) are split and each sub-command is checked
   - $(...) and backtick substitutions are extracted and checked
@@ -31,6 +33,8 @@ from _constants import (
     DESTRUCTIVE_GIT_CASE_SENSITIVE,
     DESTRUCTIVE_GIT_PATTERNS,
     ENV_STAGING_PATTERNS,
+    PROJECT_ROOT,
+    SCRATCH_DIR,
     split_shell_commands,
 )
 
@@ -84,8 +88,62 @@ def blank_quoted_spans(command):
     return "".join(out)
 
 
-def check_command(command):
+# The ONLY shape of command the scratch exemption recognises: `rm`, a few
+# harmless flags, then operands made of a tiny alphabet. Every shell
+# metacharacter (quotes, $ ` * ? [ { ~ ! # \ < > | & ( ) and whitespace other
+# than space/tab) is outside it, so what this regex parses is exactly what the
+# shell will run — there is no second reading of the line to be fooled by.
+# Operands may not start with "-" (they would be flags).
+_SCRATCH_RM_RE = re.compile(
+    r"^rm(?:[ \t]+(?:-[rRfv]+|--recursive|--force|--verbose))*"
+    r"(?:[ \t]+--)?"
+    r"((?:[ \t]+[A-Za-z0-9_./][A-Za-z0-9_./-]*)+)$"
+)
+
+
+def scratch_cleanup_only(command, cwd=None):
+    """True only when the WHOLE command line is `rm` of literal paths strictly
+    inside this project's scratch directory (SCRATCH_DIR).
+
+    Why the whole line and not each sub-command: the guard checks sub-commands
+    independently and before any of them runs, so `ln -s ~ .claude/scratch/l &&
+    rm -rf .claude/scratch/l/Documents` would pass a per-command path check —
+    the link does not exist yet. If every part must itself be a scratch `rm`,
+    nothing in the line can create, move or redirect anything.
+
+    Refuses (returns False) on: the scratch root itself, `..` segments, any path
+    whose real location (symlinks resolved) falls outside <root>/.claude/scratch,
+    and any exception — an error here must only ever lose the exemption, never
+    grant it. That target is deliberately NOT resolved: if `.claude` or `scratch`
+    is itself a symlink, every operand resolves elsewhere and fails containment,
+    so a scratch directory pointed at ~ can never launder a deletion.
+    """
+    try:
+        if "\n" in command or "\r" in command:
+            return False
+        scratch = os.path.join(os.path.realpath(PROJECT_ROOT), SCRATCH_DIR)
+        base = os.path.realpath(cwd or os.getcwd())
+        for part in re.split(r"[ \t]*(?:&&|;)[ \t]*", command.strip()):
+            match = _SCRATCH_RM_RE.match(part)
+            if not match:
+                return False
+            for operand in match.group(1).split():
+                if ".." in operand.split("/"):
+                    return False
+                path = operand if operand.startswith("/") else os.path.join(base, operand)
+                if not os.path.realpath(path).startswith(scratch + os.sep):
+                    return False
+        return True
+    except Exception as e:
+        debug(f"scratch_cleanup_only failed closed to 'not exempt': {e}")
+        return False
+
+
+def check_command(command, fs_exempt=False):
     """Check one command string against all destructive patterns.
+
+    fs_exempt skips ONLY the destructive-filesystem patterns; it is set by
+    main() when scratch_cleanup_only() vouched for the whole command line.
 
     Returns (blocked, reason).
     """
@@ -121,7 +179,7 @@ def check_command(command):
                 f"Use `git add <specific-files>` instead."
             )
 
-    for pattern in DESTRUCTIVE_FILESYSTEM_PATTERNS:
+    for pattern in ([] if fs_exempt else DESTRUCTIVE_FILESYSTEM_PATTERNS):
         if re.search(pattern, cmd_unquoted):
             return True, (
                 f"BLOCKED: Destructive filesystem operation.\n"
@@ -186,8 +244,9 @@ def main():
             if len(inner_subs) > 1:
                 to_check.extend(inner_subs)
 
+    fs_exempt = scratch_cleanup_only(command, payload.get("cwd"))
     for cmd in to_check:
-        blocked, reason = check_command(cmd)
+        blocked, reason = check_command(cmd, fs_exempt=fs_exempt)
         if blocked:
             print(reason, file=sys.stderr)
             sys.exit(2)

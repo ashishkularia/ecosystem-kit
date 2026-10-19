@@ -12,7 +12,19 @@ Format: `- [ ] YYYY-MM-DD — description (context)`
       a marked, kit-owned block in CLAUDE.md (`<!-- kit:begin NAME --> … end -->`)
       that `update.sh` rewrites and nothing else — an owner decision, since it
       is the first time the kit would edit a project-owned file.
-- [ ] 2026-10-19 — `.claude/scratch/` has no cleanup path that the guards allow
+- [ ] 2026-10-20 — `guard_dangerous_commands` misses `rm` flag spellings that are
+      not one token directly after `rm`. Probed against the UNMODIFIED guard (all
+      exit 0): `rm -r -f x`, `rm --recursive --force x`, `rm -v -rf x`,
+      `rm --no-preserve-root -rf x`; only `-rf`/`-fr`-style single tokens block,
+      because both `DESTRUCTIVE_FILESYSTEM_PATTERNS` anchor at `rm\s+-[a-z]*…`.
+      Pre-existing; found while mutation-testing the scratch exemption, and
+      deliberately NOT widened there — more blocking changes behavior in every
+      installed repo, so it is the owner's call. Fix shape: tokenise the `rm`
+      command (flags may appear anywhere before `--`), treat recursive+force as
+      blocked regardless of spelling. The scratch exemption is unaffected
+      either way (it parses its own strict grammar).
+- [x] 2026-10-19 — [RESOLVED 2026-10-20: option (a), owner-approved —
+      `scratch_cleanup_only`; option (b) reaper NOT built] `.claude/scratch/` has no cleanup path that the guards allow
       or that anything automates. The rule tells Claude to delete its own
       scratch, but `guard_dangerous_commands` blocks any combined force+recursive
       `rm` (`-rf`/`-fr`) even inside scratch; plain `rm -r <dir>` works but is
