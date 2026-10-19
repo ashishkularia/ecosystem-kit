@@ -1,5 +1,25 @@
 # DECISIONS — ecosystem-kit
 
+- 2026-10-20 — **A fail-closed blocker may carry an exemption only if the
+  exemption parses a grammar so small that the line cannot be read two ways, and
+  only for the whole line.** Owner approved the narrow `rm -rf` exemption for
+  `.claude/scratch/` (the 2026-10-19 rule says "delete your scratch", and the
+  guard made that impossible). Design calls: (1) *Whole line, not per
+  sub-command* — the guard checks sub-commands before any runs, so a per-command
+  path check is defeated by `ln -s ~ scratch/l && rm -rf scratch/l/Documents`;
+  requiring every part to be a scratch `rm` leaves nothing in the line that can
+  create or redirect. Cost accepted: cleanup is its own Bash call. (2) *A regex
+  over a tiny alphabet, not shlex* — shlex would give a second reading of the
+  line (quotes, expansions) that differs from the shell's; refusing every
+  metacharacter means what is parsed is what runs. Globs (`scratch/*`) are
+  deliberately out: the owner asked for literal paths. (3) *Containment against
+  the unresolved target, operands resolved* — a scratch dir symlinked to `~`
+  then fails containment instead of laundering deletions (mutant M5 models it).
+  (4) *Errors lose the exemption, never grant it* — the guard fails closed, so
+  the exemption must fail closed too. (5) *The pre-existing `rm -r -f` gap was
+  logged, not fixed here*: widening a blocker changes every installed repo and
+  was not the ask.
+
 - 2026-10-19 — **Claude's scratch work lives in `<repo>/.claude/scratch/`, not
   `/tmp` — enforced as a CLAUDE.md policy plus hook support, not a setting.**
   Owner rule: the repo's `.claude/` is where the rest of the machinery already

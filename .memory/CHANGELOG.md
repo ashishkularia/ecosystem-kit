@@ -1,5 +1,18 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-20 — **`guard_dangerous_commands` exempts `rm -rf` of literal paths
+  under `.claude/scratch/`** (owner-approved), so the "delete your scratch" rule
+  is followable. New `scratch_cleanup_only(command, cwd)`: the WHOLE command line
+  must be nothing but `rm` of paths over the alphabet `[A-Za-z0-9_./-]`, each
+  resolving (symlinks followed) strictly inside `<root>/.claude/scratch/`; no
+  `..`, no scratch root, no globs/quotes/variables/redirects, no other command
+  on the line (a symlink created earlier in the same line cannot redirect the
+  removal), and an internal error loses the exemption. Only the filesystem
+  patterns are skipped. 29 new tests (`test_guard_scratch_rm.py`); 15 mutants
+  of the predicate are each killed against a passing baseline. Live-checked on
+  a real scratch directory. Unmodified-guard gap logged: `rm -r -f` and other
+  split/long flag spellings are not blocked (ISSUES).
+
 - 2026-10-19 — **Scratch work moves from `/tmp` into the repo: `.claude/scratch/`.**
   New `_constants.is_scratch_path` (single predicate); `docs_contract` and
   `tdd_gate` skip scratch, `tdd_gate` before its test-file check so a scratch
