@@ -179,8 +179,8 @@ verify_registry() {
 }
 
 verify_boot_automation() {
-  # The root install (systemd unit) needs sudo; the Windows Task Scheduler
-  # trigger is off-box. Both are owner-only, so this only checks the Linux side.
+  # The root install (systemd unit) needs sudo, so it is owner-only; this only
+  # checks that it was done.
   systemctl is-enabled ecosystem-boot.service >/dev/null 2>&1 || {
     echo "       (ecosystem-boot.service not installed/enabled)"; return 1; }
 }
@@ -250,8 +250,8 @@ verify_registry
 step "Boot automation (apt upgrade + Remote Control sessions)" \
 "   Install the root pieces (systemd unit + /usr/local/sbin scripts):
      sudo bash $KIT/tools/install-boot-automation.sh
-   Then do the WINDOWS side it prints (Task Scheduler at-logon task to start
-   WSL + keep it alive) — WSL does not boot on Windows reboot without it.
+   systemd then starts it at every boot — nothing else to set up. Trust each
+   registered repo once (cd <repo> && claude) or its session waits at the prompt.
    Full chain + risk notes: $KIT/docs/BOOT-AUTOMATION.md" \
 verify_boot_automation
 

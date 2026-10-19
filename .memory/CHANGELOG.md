@@ -14,6 +14,25 @@
   one. Installer round-trip proven by installing into
   `.claude/scratch/g2-install`, removing the dir, and restoring it with
   `update.sh`.
+- 2026-10-20 — **Boot automation re-pointed from WSL to native Ubuntu** (the
+  machine's OS changed; nothing of the old chain was installed on the new one).
+  The whole Windows side is gone — Task Scheduler at-logon trigger, the
+  `wsl.exe … sleep infinity` keepalive, the `/etc/wsl.conf` check — because
+  systemd is PID 1 from power-on and the unit fires at every boot with no login.
+  `wsl-apt-upgrade.sh` / `wsl-boot-orchestrator.sh` renamed
+  `ecosystem-apt-upgrade.sh` / `ecosystem-boot-orchestrator.sh` (the prefix was
+  false; log and stamp files follow); behavior unchanged. The apt script drops
+  the "WSL kernel is Microsoft-supplied" premise: on native Ubuntu it overlaps
+  `unattended-upgrades`, can install a new kernel, and never reboots (documented,
+  opt-out = delete the deployed script). `install-boot-automation.sh` checks
+  systemd is PID 1, warns under WSL, runs `systemd-analyze verify` on the
+  installed unit, and prints a reboot-based test instead of the Windows steps.
+  `bootstrap-machine.sh` step text and `docs/BOOT-AUTOMATION.md` rewritten; the
+  WSL recipe is kept in history (commit 292b926) with a pointer. Verified
+  without root: exec bits, `bash -n`, `systemd-analyze verify` on the unit,
+  apt `--dry-run`, and the launcher's `--check` against the real registry
+  (7 repos resolved) with a tmux shim. **NOT verified live** — needs sudo and a
+  reboot, both owner-only. Found: `DevContainer/grade5` is untrusted by path.
 
 - 2026-10-14 — **`artifact_sync` no longer writes the mirror into a checkout
   that has a protected branch checked out.** The hook's root is the checkout

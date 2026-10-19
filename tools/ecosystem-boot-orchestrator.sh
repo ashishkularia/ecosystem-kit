@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# wsl-boot-orchestrator.sh — the single ExecStart of the ecosystem-boot unit.
+# ecosystem-boot-orchestrator.sh — the single ExecStart of the ecosystem-boot unit.
 #
-# Owner ask (2026-07-30): on boot, "start the wsl then run update and upgrade
-# once that is done then initiate remote control sessions for all repos."
-# systemd runs this as ROOT when the WSL instance starts (see the unit +
-# docs/BOOT-AUTOMATION.md). Order:
+# Owner ask (2026-07-30): on boot, "run update and upgrade once that is done then
+# initiate remote control sessions for all repos." Originally written for WSL;
+# re-pointed at native Ubuntu 2026-10-20 (the OS changed). systemd runs this as
+# ROOT at boot, before anyone logs in (see the unit + docs/BOOT-AUTOMATION.md).
+# Order:
 #   1. apt update && upgrade  (root, throttled to once/day, time-boxed)
 #   2. THEN start one Remote Control session per repo, AS the owner user.
 #
@@ -14,7 +15,7 @@
 set -uo pipefail
 
 OWNER="${BOOT_OWNER:-ubuntu}"
-APT="/usr/local/sbin/wsl-apt-upgrade.sh"
+APT="/usr/local/sbin/ecosystem-apt-upgrade.sh"
 # The user launcher runs AS $OWNER (their own script in their own bin) — root
 # never executes a user-writable script directly (no privilege escalation).
 USER_LAUNCHER="/home/$OWNER/.claude/bin/start-remote-sessions.sh"

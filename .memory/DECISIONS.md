@@ -19,6 +19,27 @@
   repos ship the same `/tmp/test-failures.txt` skill. Left alone on purpose:
   test-suite tempdirs and installer `mktemp` (self-cleaning internals), and the
   `guard_dangerous_commands` `rm -rf` block (see ISSUES).
+- 2026-10-20 — **Boot automation keeps its shape on native Ubuntu; only the WSL
+  assumptions go.** The OS changed from WSL to Ubuntu and the owner asked for the
+  reboot auto-start to follow. Calls made: (1) *Keep the root system unit, not a
+  user unit with `loginctl enable-linger`.* Both start at boot with no login, but
+  the install already needs root (tmux, and the apt step), the chain was verified
+  live on this shape, and a rewrite would trade a proven design for a different
+  one with no gain. (2) *Keep the apt step despite `unattended-upgrades` being
+  enabled.* It was an explicit owner requirement ("run update and upgrade, then
+  start the sessions") and the owner chose the OS move knowingly; but the old
+  justification was false on native Ubuntu, so the doc and the script now say
+  plainly that it overlaps unattended-upgrades, may install a kernel, and never
+  reboots. The opt-out is deleting the deployed script — the orchestrator
+  already skips a missing one — so no new knob. (3) *Rename `wsl-*` with no
+  migration code:* checked `/usr/local/sbin` and `/etc/systemd/system` — nothing
+  of the old chain exists on this machine, and a future need is not a reason.
+  (4) *Delete the Windows recipe instead of keeping dead branches for it,* but
+  leave a pointer to the commit that has it and a one-line WSL warning in the
+  installer, so the one silent failure (a WSL host whose unit never fires) is
+  not silent. (5) *Report, don't build, the trust preflight:* an untrusted repo
+  path strands its session invisibly; that is worth a launcher check, but it is a
+  new feature and the ask was an OS change.
 
 - 2026-10-14 — **A hook that mirrors into "the repo" must say which checkout
   it means, and refuse the ones it cannot make durable.** `artifact_sync`
