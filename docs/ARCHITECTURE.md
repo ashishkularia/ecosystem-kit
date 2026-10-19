@@ -161,9 +161,24 @@ project, instead of a per-session directory the owner never sees.
   scratch.
 - **Not covered, on purpose.** Test-suite tempdirs (`tempfile.mkdtemp` in
   `engine/hooks/tests/`) and the installer's own `mktemp` are self-cleaning
-  program internals, not Claude's working files. `guard_dangerous_commands`
-  still blocks `rm -rf`/`rm -fr` even inside scratch; plain `rm -r <dir>` is
-  outside its pattern.
+  program internals, not Claude's working files.
+- **Cleanup: the `rm -rf` exemption.** `guard_dangerous_commands` blocks
+  `rm -rf` everywhere except one shape, decided by `scratch_cleanup_only` on the
+  WHOLE command line: nothing but `rm` (flags `-r -R -f -v`, `--recursive
+  --force --verbose`, `--`) of literal paths strictly inside this checkout's
+  `.claude/scratch/`. The operand alphabet is `[A-Za-z0-9_./-]`, so every shell
+  metacharacter — quotes, `$`, backticks, globs, braces, `~`, redirects, pipes —
+  simply fails to parse. It refuses the scratch root itself, any `..` segment,
+  any path whose symlink-resolved location leaves scratch (the target is
+  deliberately not resolved, so a scratch dir symlinked to `~` fails
+  containment), another project's scratch, and a relative path whose `cwd` is
+  not where the shell will run it. *Whole line, not per sub-command:* the guard
+  checks sub-commands independently before any runs, so
+  `ln -s ~ .claude/scratch/l && rm -rf .claude/scratch/l/Documents` would pass a
+  per-command check (the link does not exist yet). Consequence, by design:
+  cleanup is its own Bash call — `rm -rf x && ls` is still blocked. Only the
+  filesystem patterns are skipped; and an internal error loses the exemption
+  rather than granting it.
 
 ### artifact_sync (published artifacts become repo artifacts)
 
