@@ -23,7 +23,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from _constants import MEMORY_DIR, PROJECT_ROOT, SOURCE_EXTENSIONS, load_kit
+from _constants import MEMORY_DIR, PROJECT_ROOT, SOURCE_EXTENSIONS, is_scratch_path, load_kit
 
 HOOK_DEBUG = os.environ.get("HOOK_DEBUG", "").lower() in ("1", "true", "yes")
 
@@ -123,6 +123,12 @@ def main():
     # A path still absolute after normalization lies OUTSIDE this repo —
     # out of scope for this project's TDD discipline.
     if rel.startswith("/") or re.match(r"^[A-Za-z]:/", rel):
+        sys.exit(0)
+
+    # Scratch is neither source nor a real test: checked BEFORE is_test_file so
+    # a throwaway test_*.py there cannot count as a test edit and unlock
+    # source edits under tdd=enforce.
+    if is_scratch_path(rel):
         sys.exit(0)
 
     if is_test_file(rel):

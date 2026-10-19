@@ -2,10 +2,11 @@
 """
 PostToolUse:Artifact — mirror every published artifact into the repo.
 
-Artifacts are authored in the session scratchpad (`/tmp/.../scratchpad/`),
-which is wiped when the session ends. Publishing therefore produced a live URL
-and NOTHING on disk: 37 publishes across two artifacts left zero files behind
-(observed 2026-08-27). This hook mirrors each publish into the repo so the
+Artifacts are authored in scratch — `.claude/scratch/` by repo policy, the
+harness's `/tmp/.../scratchpad/` before it. Neither is versioned, and the /tmp
+one is wiped when the session ends. Publishing therefore produced a live URL
+and NOTHING reviewable on disk: 37 publishes across two artifacts left zero
+files behind (observed 2026-08-27). This hook mirrors each publish into the repo so the
 artifact is versioned, diffable, reviewable in a PR, and editable in place.
 
 Layout (``artifacts.dir``, default ``docs/artifacts``)::
@@ -448,7 +449,7 @@ def main():
                     "  mirror NOT written; publish from a worktree-rooted session or commit the mirror in a PR",
                     "  reason: this checkout is on protected branch '%s'; writing the mirror here "
                     "would leave uncommitted edits on it and block the next pull" % guarded,
-                    "  the source is still at %s (session scratchpad, wiped when the session ends)"
+                    "  the source is still at %s (scratch: not versioned; a /tmp scratchpad is wiped when the session ends)"
                     % source_path,
                     "  live: %s" % url,
                 ]),

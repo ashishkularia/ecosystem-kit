@@ -30,7 +30,7 @@ The same guarantee holds for non-interactive sessions (`claude -p`, CI, schedule
 
 ## Published artifacts land in the repo
 
-Artifacts are authored in the session scratchpad, which is wiped when the session ends — so publishing produced a live URL and nothing you could review, diff, or edit later. The `artifact_sync` hook (PostToolUse · Artifact) mirrors every publish into `docs/artifacts/<slug>/`: the **source file verbatim** (the one you edit), a **generated counterpart** in the other format, and `artifact.json` with the live URL. An `INDEX.md` lists them all.
+Artifacts are authored in scratch (`.claude/scratch/`, gitignored and never versioned; before that, the harness's `/tmp` scratchpad, which is also wiped when the session ends) — so publishing produced a live URL and nothing you could review, diff, or edit later. The `artifact_sync` hook (PostToolUse · Artifact) mirrors every publish into `docs/artifacts/<slug>/`: the **source file verbatim** (the one you edit), a **generated counterpart** in the other format, and `artifact.json` with the live URL. An `INDEX.md` lists them all.
 
 To change an artifact, edit its source file in the repo and republish it with its URL — the live page and the committed copy stay in step. Only the source is authoritative; generated files carry a "do not edit" banner, because the kit is stdlib-only and neither conversion direction is faithful.
 
@@ -40,7 +40,7 @@ To change an artifact, edit its source file in the repo and republish it with it
 npx serve docs/artifacts     # or: python3 -m http.server -d docs/artifacts
 ```
 
-By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. On a checkout that has a protected branch checked out the mirror is not written at all (the hook says so and names where the scratchpad source is): publish from a worktree-rooted session, or commit the mirror in a PR. Configure with the `artifacts` key in `kit.json`.
+By default each publish makes its own commit, scoped to the artifact paths alone and never on a protected branch. On a checkout that has a protected branch checked out the mirror is not written at all (the hook says so and names where the scratch source is): publish from a worktree-rooted session, or commit the mirror in a PR. Configure with the `artifacts` key in `kit.json`.
 
 **They also get posted.** Mirroring makes an artifact durable, not reachable, so every profile points `artifacts.deploy_command` at `~/.claude/bin/deploy-artifacts` — a dispatcher that hands the tree to whatever this machine serves artifacts with. Configure the destination once per machine:
 
@@ -49,6 +49,10 @@ ln -s ~/homeassistant/ops/lxc/deploy-artifacts.sh ~/.claude/artifacts-deploy
 ```
 
 Unconfigured, it says so on every publish instead of failing quietly. Set `deploy_command` to `""` in a repo that should never publish.
+
+## Scratch work stays in the repo
+
+Claude's rough or disposable work — throwaway scripts, captured output, rehearsal installs — goes in `<repo>/.claude/scratch/`, never `/tmp` (owner rule 2026-10-19). The installer and `update.sh` seed the directory with a self-ignoring `.gitignore`, `health-check.sh` verifies it, and the rule ships to every project as a section of the rendered `CLAUDE.md`. Hooks treat scratch as non-source, so a one-off script never raises a docs-contract flag or a TDD gate. Nothing prunes it: Claude removes its own scratch when the work is done. Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#repo-local-scratch-claudescratch).
 
 ## The owner guardrail
 

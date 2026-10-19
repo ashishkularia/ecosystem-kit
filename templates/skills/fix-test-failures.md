@@ -24,7 +24,7 @@ Run the suite command(s) from `kit.json` `quality_commands.test` and capture out
 scratch file (respect the container wrapper if the commands include one):
 
 ```bash
-<quality_commands.test> 2>&1 > /tmp/test-failures.txt
+<quality_commands.test> > .claude/scratch/test-failures.txt 2>&1
 ```
 
 Record the summary line (total / failures / errors).
@@ -49,7 +49,7 @@ categories:
 For each category, determine whether failures cascade from a single root cause:
 
 1. **Count failures per category** — the largest category is likely a cascade
-   (`grep -c "<pattern>" /tmp/test-failures.txt` counts fast)
+   (`grep -c "<pattern>" .claude/scratch/test-failures.txt` counts fast)
 2. **Check if fixing one thing resolves many** — a routing fix resolves all "null response" failures
 3. **Look for shared infrastructure** — middleware, global setup, base classes, fixtures
 

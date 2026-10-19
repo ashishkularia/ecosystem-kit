@@ -3,6 +3,8 @@
 # TRACKED .memory/cache/.gitignore ("*" + "!.gitignore") so the directory
 # survives clones. A root-level ".memory/cache/" line would make that
 # .gitignore itself untrackable (git cannot re-include inside an excluded dir).
+# The same holds for .claude/scratch/ (Claude's repo-local replacement for /tmp):
+# it self-ignores via its own tracked .gitignore — do NOT add a line for it.
 .claude/hooks/.daemon.*
 .claude/hooks/__pycache__/
 .claude/settings.local.json

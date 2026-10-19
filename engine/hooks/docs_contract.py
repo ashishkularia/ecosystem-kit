@@ -49,7 +49,7 @@ import time
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-from _constants import MEMORY_DIR, PROJECT_ROOT, load_kit
+from _constants import MEMORY_DIR, PROJECT_ROOT, is_scratch_path, load_kit
 
 CACHE_DIR = os.path.join(MEMORY_DIR, "cache")
 
@@ -228,6 +228,10 @@ def handle_post_tool(payload):
         sys.exit(0)
     # Never flag edits to the memory ledgers themselves.
     if norm.startswith(".memory/") or "/.memory/" in norm:
+        sys.exit(0)
+    # Repo-local scratch is throwaway by definition — an unanchored profile
+    # regex must not turn a one-off helper into a CHANGELOG obligation.
+    if is_scratch_path(norm):
         sys.exit(0)
     session_id = session_of(payload)
     if session_id and matches_source(norm):

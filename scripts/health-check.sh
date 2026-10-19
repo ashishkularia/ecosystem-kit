@@ -287,6 +287,18 @@ else
     warn ".memory/cache/.gitignore missing or lacks '*' + '!.gitignore'"
   fi
 
+  # .claude/scratch/ is where Claude's throwaway work goes (never /tmp), with
+  # the same tracked-self-ignore mechanism as cache/. Only a WARN: update.sh
+  # seeds it, and nothing breaks until Claude first writes there.
+  if [ ! -d "$CLAUDE_DIR/scratch" ]; then
+    warn ".claude/scratch/ missing (run /kit-update; Claude's scratch work has no gitignored home until then)"
+  elif [ -f "$CLAUDE_DIR/scratch/.gitignore" ] && grep -qxF '*' "$CLAUDE_DIR/scratch/.gitignore" 2>/dev/null \
+       && grep -qxF '!.gitignore' "$CLAUDE_DIR/scratch/.gitignore" 2>/dev/null; then
+    ok "scratch/ is self-gitignored (tracked .gitignore: '*' + '!.gitignore')"
+  else
+    warn ".claude/scratch/.gitignore missing or lacks '*' + '!.gitignore' (scratch files could be committed)"
+  fi
+
   # Every kit.json always_load path must exist — session_boot instructs the
   # agent to Read each one every session.
   if [ -f "$CLAUDE_DIR/kit.json" ]; then

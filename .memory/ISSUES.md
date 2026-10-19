@@ -2,6 +2,28 @@
 
 Format: `- [ ] YYYY-MM-DD — description (context)`
 
+- [ ] 2026-10-19 — The kit has no way to deliver a `CLAUDE.md` TEMPLATE change to
+      an already-installed project: `update.sh` never touches CLAUDE.md and
+      `kit-propagate`/`/kit-update`/`/retro` have no handling for it. A policy
+      added to `templates/CLAUDE.md.template` (e.g. the 2026-10-19 scratch rule)
+      reaches only NEW installs; the machinery changes around it do reach
+      existing ones, so a repo can get the directory without the rule. Worked
+      around for scratch with a user-level `~/.claude/CLAUDE.md`. Candidate fix:
+      a marked, kit-owned block in CLAUDE.md (`<!-- kit:begin NAME --> … end -->`)
+      that `update.sh` rewrites and nothing else — an owner decision, since it
+      is the first time the kit would edit a project-owned file.
+- [ ] 2026-10-19 — `.claude/scratch/` has no cleanup path that the guards allow
+      or that anything automates. The rule tells Claude to delete its own
+      scratch, but `guard_dangerous_commands` blocks any combined force+recursive
+      `rm` (`-rf`/`-fr`) even inside scratch; plain `rm -r <dir>` works but is
+      easy to forget, and unlike `/tmp` scratch survives the session, so it
+      accumulates. Two candidate fixes, both owner decisions because the first
+      loosens a fail-closed blocker: (a) a narrowly scoped exemption for `rm -rf`
+      whose every target is a literal relative path under `.claude/scratch/`
+      (no `..`, globs, variables or substitutions); (b) an age-based reaper in
+      `prune-stale-branches`/weekly-hygiene. *(Found while cleaning up the
+      installer rehearsal; same-day change.)*
+
 - [ ] 2026-09-26 — `artifact_sync.py`'s `commit` default is `true`: a published
       Artifact mirror is committed onto whatever branch is currently checked
       out, by pathspec, the moment it lands. In a project mid-way through a
