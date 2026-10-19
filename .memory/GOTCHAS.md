@@ -1,5 +1,9 @@
 # GOTCHAS — ecosystem-kit
 
+- 2026-10-20 — `update.sh` treats SKILLS as kit-owned and overwrites them every run; only `commands/` and `agents/` get the stale-vs-customized baseline check. This repo's CLAUDE.md says "commands/agents/skills are skip-if-exists", which is `install.sh`'s behavior only. A project that customized a skill (mylantite's `fix-test-failures.md`) loses the edit at its next update.
+- 2026-10-20 — A root-level file that `update.sh` writes (CLAUDE.md now, `.gitattributes` earlier) is silently discarded by `tools/kit-propagate` unless the tool stages it: it runs `git add .claude <touched>` in a throwaway worktree. And the cron job runs the DEPLOYED copy in `~/.claude/bin/`, so a `tools/` change does nothing until `bootstrap-machine.sh` redeploys it.
+- 2026-10-20 — A mutation run is only evidence if the UNMUTATED baseline passes; otherwise every "killed" mutant is just the pre-existing failure. Assert the baseline before trusting any mutant result.
+
 - 2026-07-23 — bash: `((x++))` returns exit status 1 when x was 0, so under `set -e` it kills the script. Use `x=$((x+1))` in `-e` scripts; `health-check.sh` additionally runs without `-e` because its checks fail on purpose.
 - 2026-07-23 — jq is NOT installed on the hosts; every JSON read/write in shell must go through python3.
 - 2026-07-23 — The permission classifier blocks top-level agent `cp`/`mv` across directories (and `sed`/`awk`); agents author kit files with the Write tool. Those same commands are fine INSIDE scripts the agent authors (installer, updater, test harnesses).
