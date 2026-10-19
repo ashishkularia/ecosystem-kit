@@ -207,6 +207,18 @@ PROTECTED_FILES = [
     ".claude/settings.local.json",
 ]
 
+# Repo-local scratch: throwaway scripts, captured output, rehearsal installs.
+# It lives INSIDE the repo (not /tmp) and is gitignored, so it is by definition
+# never source — the "is this source?" gates (docs_contract, tdd_gate) skip it.
+# One predicate here, not one regex per hook: the boundary is defined once.
+SCRATCH_DIR = ".claude/scratch"
+
+
+def is_scratch_path(rel_path):
+    """True when a repo-relative path is inside SCRATCH_DIR (anchored at the root)."""
+    rel = rel_path.replace("\\", "/")
+    return rel == SCRATCH_DIR or rel.startswith(SCRATCH_DIR + "/")
+
 
 # ── Shell command splitting (security primitive) ────────────────────
 # The single implementation for every guard. It used to be copy-pasted into

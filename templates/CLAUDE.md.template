@@ -65,6 +65,25 @@ commands, branch types, domain map).
   relevance where it is used. Genuinely project-bound things — this repo's
   schema, business rules, infrastructure names — stay here.
 
+## Scratch work lives in the repo, never in /tmp
+
+Rough or disposable work — throwaway scripts, captured command output,
+rehearsal installs, drafts of an artifact before it is published — goes in
+`.claude/scratch/` of the checkout you are working in (owner rule 2026-10-19).
+**This replaces `/tmp`, `$TMPDIR`, `mktemp`, and the harness-provided session
+scratchpad**, even where the harness says to prefer them. `/tmp` only when the
+owner explicitly asks.
+
+- It is gitignored and seeded by the installer (`.claude/scratch/.gitignore`),
+  so it never shows in `git status`. Use a subdirectory per task
+  (`.claude/scratch/<topic>/`) and delete it when the work is done — nothing
+  prunes it for you, and unlike `/tmp` it survives the session.
+- Nothing that must outlive the work belongs there. Commit it, or write what
+  mattered into `.memory/`.
+- Hooks treat it as non-source: writing there never raises a docs-contract
+  flag or a TDD gate. `secret_scanner` still reads it — no secrets in scratch
+  either.
+
 ## Session helpers
 
 `/state` `/verify` `/issues` `/idea` `/decide` `/retro` `/summary` `/diary`

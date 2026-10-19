@@ -132,12 +132,47 @@ That allowance used to have a named consumer: `weekly-hygiene` committed `.memor
 
 **Diary scope.** `diary_scope: "branch"` (the default) gives each branch/MR **one** diary — `.memory/diary/YYYY-MM-DD-<branch-slug>.md`, dated when that branch's diary started and reused for the branch's whole life, so a change's discussion and decisions stay together and survive the days it spans. An existing entry for the branch is reused whatever its date prefix; only the first write picks a date. `diary_scope: "daily"` keeps the legacy one-file-per-date behavior, and branch scope falls back to the dated file on a detached HEAD or outside a git repo (a diary keyed on a branch that doesn't exist is worse than a dated one). `docs_contract.py diary-path` resolves the current file so command flows never reimplement the rules.
 
+### Repo-local scratch (`.claude/scratch/`)
+
+Claude's rough or disposable work — throwaway scripts, captured output,
+rehearsal installs, artifact drafts — lives in `<repo>/.claude/scratch/`, not
+`/tmp` (owner rule 2026-10-19). The same checkout, disk and ignore rules as the
+project, instead of a per-session directory the owner never sees.
+
+- **Policy, not a setting.** The rule is a `CLAUDE.md` section (template and this
+  repo's own), which overrides the harness's default scratchpad. There is no
+  `kit.json` key: Claude Code documents `CLAUDE_CODE_TMPDIR` as ignored in
+  project and local settings (user/managed settings or the shell only) and
+  copies `env` values literally, so a committed `settings.json` cannot relocate
+  the harness scratchpad per repo. A user-level `CLAUDE_CODE_TMPDIR` is a
+  machine-wide path, not a per-repo one.
+- **Directory.** `install.sh` and `update.sh` seed `.claude/scratch/.gitignore`
+  (`*` + `!.gitignore`, the `.memory/cache/` mechanism), so the directory
+  survives clones and never shows in `git status`; `health-check.sh` WARNs when
+  it is missing or the ignore is wrong. Nothing prunes it — Claude deletes its
+  own scratch when the work is done.
+- **Hooks.** `_constants.is_scratch_path` is the single predicate. `docs_contract`
+  skips scratch (no `code_change` flag) and `tdd_gate` skips it *before* its
+  test-file check, so a throwaway `test_*.py` cannot unlock source edits under
+  `tdd: enforce`. The engine previously assumed scratch lived outside the repo
+  (an out-of-repo path is "never flagged"); moving it inside would otherwise
+  turn every one-off script into a CHANGELOG/diary obligation under any
+  unanchored `source_patterns` regex. `secret_scanner` deliberately still scans
+  scratch.
+- **Not covered, on purpose.** Test-suite tempdirs (`tempfile.mkdtemp` in
+  `engine/hooks/tests/`) and the installer's own `mktemp` are self-cleaning
+  program internals, not Claude's working files. `guard_dangerous_commands`
+  still blocks `rm -rf`/`rm -fr` even inside scratch; plain `rm -r <dir>` is
+  outside its pattern.
+
 ### artifact_sync (published artifacts become repo artifacts)
 
-Artifacts are authored in the session scratchpad (`/tmp/.../scratchpad/`), which
-is wiped when the session ends. Publishing therefore produced a live URL and
-**nothing on disk** — 37 publishes across two artifacts left zero files behind
-(measured 2026-08-27). This hook mirrors each publish into the repo so an
+Artifacts are authored in scratch — `.claude/scratch/` by repo policy (see
+[Repo-local scratch](#repo-local-scratch-claudescratch)), the harness's
+`/tmp/.../scratchpad/` before it. Neither is versioned, and the `/tmp` one is
+wiped when the session ends. Publishing therefore produced a live URL and
+**nothing reviewable on disk** — 37 publishes across two artifacts left zero
+files behind (measured 2026-08-27). This hook mirrors each publish into the repo so an
 artifact is versioned, diffable, reviewable in a PR, and editable in place.
 
 Layout under `artifacts.dir` (default `docs/artifacts`):
@@ -186,8 +221,9 @@ uncommitted edits to tracked files made the owner's next `git pull` refuse.
 `main()` now asks `protected_checkout()` before writing anything: on a branch in
 `protected_branches` it writes nothing and says so (`mirror NOT written; publish
 from a worktree-rooted session or commit the mirror in a PR`), naming the
-scratchpad source path, because that file is wiped when the session ends and a
-silent skip would lose the artifact's only on-disk copy. Unknown is not
+scratch source path, because that file is never versioned (and a `/tmp`
+scratchpad is wiped when the session ends), so a silent skip would lose the
+artifact's only durable copy. Unknown is not
 protected: a non-repo, a git failure or a detached HEAD falls through to the
 normal write, and a project with no `protected_branches` is unchanged.
 

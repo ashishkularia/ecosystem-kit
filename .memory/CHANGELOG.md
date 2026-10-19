@@ -1,5 +1,20 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-19 — **Scratch work moves from `/tmp` into the repo: `.claude/scratch/`.**
+  New `_constants.is_scratch_path` (single predicate); `docs_contract` and
+  `tdd_gate` skip scratch, `tdd_gate` before its test-file check so a scratch
+  `test_*.py` cannot unlock source edits. `install.sh`/`update.sh` seed a
+  self-ignoring `.claude/scratch/.gitignore`; `health-check.sh` WARNs when it is
+  missing. The rule ships in `templates/CLAUDE.md.template` (new section) and in
+  this repo's `CLAUDE.md`. `fix-test-failures` skill no longer writes
+  `/tmp/test-failures.txt` (and its `2>&1 > file` redirect, which captured only
+  stdout, is now `> file 2>&1`). `artifact_sync` wording no longer claims the
+  source is "wiped when the session ends". 11 new tests
+  (`test_scratch_exemption.py`); 4 mutants of the predicate each fail at least
+  one. Installer round-trip proven by installing into
+  `.claude/scratch/g2-install`, removing the dir, and restoring it with
+  `update.sh`.
+
 - 2026-10-14 — **`artifact_sync` no longer writes the mirror into a checkout
   that has a protected branch checked out.** The hook's root is the checkout
   whose `.claude/` the session loaded, so a session rooted at main mirrored

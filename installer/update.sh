@@ -173,6 +173,21 @@ echo "Scripts (.claude/scripts/):"
 mkdir -p "$CLAUDE_DIR/scripts"
 refresh_file "$KIT_ROOT/scripts/health-check.sh" "$CLAUDE_DIR/scripts/health-check.sh" ".claude/scripts/health-check.sh"
 
+# ── Scratch dir (.claude/scratch/) ──────────────────────────────────
+# The repo-local replacement for /tmp. Installs that predate it have no such
+# directory, and the CLAUDE.md rule would point Claude at a path that is not
+# gitignored. Seed the self-ignoring .gitignore ("*" + "!.gitignore", the same
+# mechanism as .memory/cache/); never touch anything already inside it.
+echo ""
+echo "Scratch (.claude/scratch/):"
+mkdir -p "$CLAUDE_DIR/scratch"
+if [ -f "$CLAUDE_DIR/scratch/.gitignore" ] && grep -qxF '!.gitignore' "$CLAUDE_DIR/scratch/.gitignore"; then
+  echo "  OK       .claude/scratch/.gitignore"
+else
+  printf '*\n!.gitignore\n' > "$CLAUDE_DIR/scratch/.gitignore"
+  echo "  SEEDED   .claude/scratch/.gitignore"
+fi
+
 # ── Skills refresh (.claude/skills/) ────────────────────────────────
 echo ""
 echo "Skills (.claude/skills/):"

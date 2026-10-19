@@ -1,5 +1,25 @@
 # DECISIONS — ecosystem-kit
 
+- 2026-10-19 — **Claude's scratch work lives in `<repo>/.claude/scratch/`, not
+  `/tmp` — enforced as a CLAUDE.md policy plus hook support, not a setting.**
+  Owner rule: the repo's `.claude/` is where the rest of the machinery already
+  lives, so disposable work belongs there too. Three calls were made for the
+  owner. (1) *Policy over setting*: Claude Code documents `CLAUDE_CODE_TMPDIR`
+  as ignored in project and local settings and copies `env` values literally, so
+  a committed file cannot move the harness scratchpad per repo; a user-level
+  value would be one machine-wide path. CLAUDE.md overrides the harness default
+  and is the only per-repo lever. (2) *The engine had to learn about it*: it
+  assumed scratch was outside the repo (an out-of-repo path is "never
+  flagged"), so inside the repo an unanchored `source_patterns` regex — or
+  `tdd_gate`'s extension fallback, which `percale` hits today — would turn
+  every one-off script into a CHANGELOG/diary obligation or a block. One shared
+  predicate, not a regex per hook (the `split_shell_commands` lesson). (3)
+  *No `kit.json` key*: the path is a constant, so no schema surface to keep in
+  three places. Promotion test passed with evidence: five of six registered
+  repos ship the same `/tmp/test-failures.txt` skill. Left alone on purpose:
+  test-suite tempdirs and installer `mktemp` (self-cleaning internals), and the
+  `guard_dangerous_commands` `rm -rf` block (see ISSUES).
+
 - 2026-10-14 — **A hook that mirrors into "the repo" must say which checkout
   it means, and refuse the ones it cannot make durable.** `artifact_sync`
   resolves the repo from its own file, so a session rooted at main writes into

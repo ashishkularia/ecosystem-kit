@@ -176,6 +176,15 @@ if [ ! -f "$MEM_DIR/cache/.gitignore" ] || ! grep -qxF '!.gitignore' "$MEM_DIR/c
   printf '*\n!.gitignore\n' > "$MEM_DIR/cache/.gitignore"
 fi
 
+# .claude/scratch/ is where Claude's throwaway work lives instead of /tmp
+# (scripts, captured output, rehearsal installs). Same self-ignore mechanism as
+# cache/: a TRACKED .gitignore ("*" + "!.gitignore") so the dir survives clones
+# and never shows in `git status`. Contents are never touched here.
+mkdir -p "$CLAUDE_DIR/scratch"
+if [ ! -f "$CLAUDE_DIR/scratch/.gitignore" ] || ! grep -qxF '!.gitignore' "$CLAUDE_DIR/scratch/.gitignore"; then
+  printf '*\n!.gitignore\n' > "$CLAUDE_DIR/scratch/.gitignore"
+fi
+
 # Empty knowledge dirs must survive the git round-trip (clone/CI): git tracks
 # no empty directories, so seed .gitkeep where nothing else is tracked.
 for d in diary auto; do
