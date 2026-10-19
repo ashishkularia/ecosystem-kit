@@ -9,7 +9,7 @@ One SDLC ecosystem, installed **by copy** into every project repo (mylantite, gr
 | **Machinery (kit-owned)** | `<repo>/.claude/hooks/`, `skills/`, `scripts/` | the kit — refreshed by `update.sh` | hook engine, skills, health-check |
 | **Machinery (kit-seeded)** | `<repo>/.claude/` | the project after install — `update.sh` refreshes only what the project has NOT edited | `commands/`, `agents/`, `settings.json` wiring (skip-if-exists at install), `kit.json` profile (seeded once, project-owned) |
 | **Knowledge** | `<repo>/.memory/` | the project (never touched by updates) | STATE, DECISIONS, ISSUES, IDEAS, GOTCHAS, CONVENTIONS, VERIFY, CHANGELOG, DOCS-CHANGELOG, `contexts/`, `references/`, `diary/`, `auto/`, `cache/` |
-| **Policy** | `<repo>/CLAUDE.md` | the project | the auto-loaded durable-policy file; short, and points into `.memory/` |
+| **Policy** | `<repo>/CLAUDE.md` | the project — except text between `kit:begin`/`kit:end` marker lines, which `update.sh` manages | the auto-loaded durable-policy file; short, and points into `.memory/` |
 
 Machinery is **copied, never symlinked** — every repo works standalone (clones, CI, containers, machines without the kit checked out). The cost is drift; `update.sh` and `.claude/kit-version` manage it.
 
@@ -74,7 +74,7 @@ Idempotent. Refuses non-git targets. Copies the engine (overwrite OK) and comman
 installer/update.sh <TARGET_DIR>
 ```
 
-Refreshes **engine, skills, scripts** — plus any command or agent still byte-identical to the kit template it was installed from, so kit improvements actually reach installed repos. Anything the project edited is reported `KEPT` and left alone; never `.memory/`, never `kit.json`, never `settings*.json`. Shows exactly what changed. If the kit has added a NEW hook, `settings.json` is project-owned and is never edited — so update.sh reports the unwired hook and prints the exact block to paste, rather than leaving it silently inert. From inside a project, `/kit-update` pulls the kit repo, runs `update.sh`, and reviews the diff.
+Refreshes **engine, skills, scripts** — plus any command or agent still byte-identical to the kit template it was installed from, so kit improvements actually reach installed repos. Anything the project edited is reported `KEPT` and left alone; never `.memory/`, never `kit.json`, never `settings*.json`. `CLAUDE.md` stays project-owned with one exception: text between `<!-- kit:begin NAME -->` and `<!-- kit:end NAME -->` marker lines (currently the scratch-work rule) is kit-managed — rewritten on update, appended once to a `CLAUDE.md` that lacks it, and everything outside the markers is preserved byte for byte. Put project-specific policy outside the markers; a broken marker is reported `KEPT` and the file is left alone. Shows exactly what changed. If the kit has added a NEW hook, `settings.json` is project-owned and is never edited — so update.sh reports the unwired hook and prints the exact block to paste, rather than leaving it silently inert. From inside a project, `/kit-update` pulls the kit repo, runs `update.sh`, and reviews the diff.
 
 ## Self-improvement loop
 

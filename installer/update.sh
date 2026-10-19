@@ -9,11 +9,12 @@
 #   * skills        <kit>/templates/skills/*.md -> <target>/.claude/skills/
 #   * commands      <kit>/templates/commands/*.md -> <target>/.claude/commands/  (UNCUSTOMIZED ONLY)
 #   * agents        <kit>/templates/agents/*.md   -> <target>/.claude/agents/    (UNCUSTOMIZED ONLY)
+#   * CLAUDE.md     kit-managed BLOCKS only (see "CLAUDE.md kit blocks" below)
 #   * kit-version   restamped
 #
 # NEVER touches: .memory/ (knowledge), .claude/kit.json (project-owned profile),
-# settings.json, settings.local.json, CLAUDE.md, .gitignore — nor any command or
-# agent a project has edited.
+# settings.json, settings.local.json, .gitignore, and CLAUDE.md outside its
+# kit-managed blocks — nor any command or agent a project has edited.
 #
 # The commands/agents gap (2026-08-27)
 # ------------------------------------
@@ -36,6 +37,17 @@
 #
 # Conservative by construction: every ambiguous case leaves the project's file
 # alone. A project that WANTS the kit version back runs install.sh --force.
+#
+# CLAUDE.md kit blocks (2026-10-20)
+# ---------------------------------
+# A policy added to templates/CLAUDE.md.template used to reach only NEW installs:
+# CLAUDE.md is project-owned and was never rewritten, so five repos received the
+# .claude/scratch/ directory but not the rule that tells Claude to use it. The
+# owner approved ONE exception: text between <!-- kit:begin NAME --> and
+# <!-- kit:end NAME --> is kit-owned and synced from the template by
+# installer/kit_blocks.py. A block the project lacks is appended once; everything
+# outside the markers is preserved byte for byte; malformed markers are KEPT and
+# reported. tools/kit-propagate stages CLAUDE.md so the change reaches a PR.
 #
 # Prints exactly what changed before the summary.
 
@@ -302,6 +314,24 @@ for pair in "commands:.claude/commands" "agents:.claude/agents"; do
   fi
 done
 
+# ── CLAUDE.md kit-managed blocks ────────────────────────────────────
+# The one place the updater edits a project-owned file; see the header and
+# installer/kit_blocks.py. A failure here warns and moves on — it must never
+# abort an engine update that has already been applied.
+echo ""
+echo "CLAUDE.md (kit-managed blocks only):"
+if blocks_out="$(python3 "$SCRIPT_DIR/kit_blocks.py" \
+      "$KIT_ROOT/templates/CLAUDE.md.template" "$TARGET_DIR/CLAUDE.md" 2>&1)"; then
+  printf '%s\n' "$blocks_out" | grep -v '^@counts ' || true
+  blocks_counts="$(printf '%s\n' "$blocks_out" | sed -n 's/^@counts //p')"
+  n="$(printf '%s' "$blocks_counts" | sed -n 's/^new=\([0-9]*\).*/\1/p')";          NEW=$((NEW+${n:-0}))
+  n="$(printf '%s' "$blocks_counts" | sed -n 's/.* changed=\([0-9]*\).*/\1/p')";    CHANGED=$((CHANGED+${n:-0}))
+  n="$(printf '%s' "$blocks_counts" | sed -n 's/.* unchanged=\([0-9]*\).*/\1/p')";  UNCHANGED=$((UNCHANGED+${n:-0}))
+  n="$(printf '%s' "$blocks_counts" | sed -n 's/.* kept=\([0-9]*\).*/\1/p')";       CUSTOMIZED=$((CUSTOMIZED+${n:-0}))
+else
+  echo "  WARN     CLAUDE.md block sync failed (update continues): $blocks_out"
+fi
+
 # ── kit-version restamp ─────────────────────────────────────────────
 KIT_VERSION="$(python3 - "$KIT_ROOT/kit.config.example.json" "$CLAUDE_DIR/kit.json" <<'PYEOF'
 import json, sys
@@ -328,7 +358,8 @@ cat <<EOF
 
 Update complete: $NEW new, $CHANGED updated, $UNCHANGED unchanged, $CUSTOMIZED kept (customized).
 kit-version: $KIT_VERSION (kit commit $KIT_COMMIT)
-Untouched by design: .memory/, .claude/kit.json, settings*.json, CLAUDE.md.
+Untouched by design: .memory/, .claude/kit.json, settings*.json, and CLAUDE.md
+outside its <!-- kit:begin NAME --> ... <!-- kit:end NAME --> blocks.
 Commands/agents refresh only while still identical to the kit template they were
 installed from; anything this project edited is reported as KEPT and left alone.
 To deliberately adopt the kit version of a KEPT file: installer/install.sh --force.

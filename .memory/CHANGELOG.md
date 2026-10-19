@@ -1,5 +1,23 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-20 — **The kit may now rewrite marked blocks inside a project's
+  `CLAUDE.md`** (owner-approved), so a kit-wide policy reaches installed repos
+  and not only new installs. New `installer/kit_blocks.py`: text between
+  `<!-- kit:begin NAME -->` and `<!-- kit:end NAME -->` lines is synced from
+  `templates/CLAUDE.md.template`; a missing block is appended once; everything
+  outside the markers is preserved byte for byte; lone/duplicate/reversed/nested
+  markers and CRLF files are `KEPT` and reported, never guessed at; writes are
+  atomic and go through a symlinked CLAUDE.md. `update.sh` runs it (a failure
+  warns, never aborts) and its "never touches CLAUDE.md" header/summary are
+  corrected; `tools/kit-propagate` now stages a tracked `CLAUDE.md` (without it
+  the rewrite is silently discarded with the worktree — reproduced). The
+  scratch rule in the template is the first block. 30 new tests; 18 mutants
+  killed against a passing baseline. Proven end to end on a simulated pre-block
+  install: only an append, zero original bytes touched, second run a no-op,
+  in-block tampering reverted, outside edits preserved, broken marker KEPT.
+  **Needs the owner:** redeploy `kit-propagate` (`bootstrap-machine.sh`) — the
+  cron runs the deployed copy (ISSUES).
+
 - 2026-10-20 — **`guard_dangerous_commands` exempts `rm -rf` of literal paths
   under `.claude/scratch/`** (owner-approved), so the "delete your scratch" rule
   is followable. New `scratch_cleanup_only(command, cwd)`: the WHOLE command line
