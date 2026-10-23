@@ -179,11 +179,11 @@ class VaultSyncTest(unittest.TestCase):
         (self.repo / ".memory" / "auto" / "local-only.md").write_text("untracked\n")
         target = self.project / self.vs.MEMORY_FOLDER
 
-        _, out = self.run_tool("adopt-memory", "check")
+        _, out = self.run_tool("adopt-memory", "proj", "check")
         self.assertIn("dry run", out)
         self.assertFalse(target.exists())
 
-        self.run_tool("adopt-memory")
+        self.run_tool("adopt-memory", "proj")
         self.assertEqual((target / "note.md").read_text(), "memory\n")
         self.assertEqual((target / "local-only.md").read_text(), "untracked\n")
         self.assertTrue((self.repo / ".memory" / "auto" / "note.md").exists(),
@@ -193,14 +193,26 @@ class VaultSyncTest(unittest.TestCase):
         self.assertEqual(data["autoMemoryDirectory"], str(target))
         self.assertEqual(data["permissions"], {"allow": ["Bash(ls)"]})
 
-        _, out = self.run_tool("adopt-memory")
+        _, out = self.run_tool("adopt-memory", "proj")
         self.assertIn("already adopted", out)
+
+    def test_adopt_memory_needs_a_name_and_skips_other_repos(self):
+        code, out = self.run_tool("adopt-memory")
+        self.assertEqual(code, 2)
+        self.assertIn("needs a repo directory name", out)
+        code, out = self.run_tool("adopt-memory", "nope")
+        self.assertEqual(code, 2)
+        self.assertIn("unknown repo(s): nope", out)
+        self.assertFalse((self.project / self.vs.MEMORY_FOLDER).exists())
+        code, _ = self.run_tool("adopt-memory", "all")
+        self.assertEqual(code, 0)
+        self.assertTrue((self.project / self.vs.MEMORY_FOLDER / "note.md").exists())
 
     def test_adopt_memory_keeps_both_on_conflict(self):
         target = self.project / self.vs.MEMORY_FOLDER
         target.mkdir(parents=True)
         (target / "note.md").write_text("vault version\n")
-        self.run_tool("adopt-memory")
+        self.run_tool("adopt-memory", "proj")
         self.assertEqual((target / "note.md").read_text(), "vault version\n")
         self.assertEqual((target / "note (repo copy).md").read_text(), "memory\n")
 

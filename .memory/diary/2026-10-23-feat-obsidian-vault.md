@@ -18,6 +18,9 @@
 - **Verified:** 15 new tests; full suite 306 OK. Before the first real run I scanned
   the 491 files to be copied for credential patterns and found none. The first run
   wrote 491 files across 7 repos, and a second run wrote 0.
+- **Changed after review:** the owner postponed the memory move because other
+  sessions are running, and wants the repos moved one at a time. `adopt-memory`
+  now takes a repo directory name (or `all`) and refuses to run without one.
 - **Open:** `adopt-memory` was refused by the permission classifier (it rewrites
   settings.local.json in seven repos and copies notes to a synced location), so the
   owner runs it. After that, DevContainer, mylantite and meritick each need a PR that

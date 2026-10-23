@@ -31,9 +31,13 @@ it was edited, and is simply removed when it was not.
 Modes:
   vault-sync                     refresh every registered repo's Repo/ copy
   vault-sync check               dry-run: report what would change
-  vault-sync adopt-memory        point each repo's autoMemoryDirectory at the
-                                 vault and copy its existing notes there
-  vault-sync adopt-memory check  dry-run of the above
+  vault-sync adopt-memory NAME   point one repo's autoMemoryDirectory at the
+                                 vault and copy its existing notes there; NAME
+                                 is the repo directory name, or `all`. One at a
+                                 time, because a session already running in that
+                                 repo keeps writing to the old folder until it
+                                 restarts
+  vault-sync adopt-memory NAME check   dry-run of the above
 
 Vault path: one line in ~/.claude/vault-dir. No file, or a path that does not
 exist, is a no-op (exit 0), so a machine without the vault is unaffected.
@@ -338,6 +342,10 @@ def adopt_memory(repo, project_dir, dry):
 def main(argv):
     dry = "check" in argv
     adopt = "adopt-memory" in argv
+    names = [a for a in argv if a not in ("check", "adopt-memory")]
+    if adopt and not names:
+        print("vault-sync: adopt-memory needs a repo directory name, or `all`")
+        return 2
     vault = vault_dir()
     if not vault:
         print(f"vault-sync: no vault (set its path in {VAULT_FILE}); nothing to do")
@@ -355,7 +363,14 @@ def main(argv):
         if not dry and not guide.exists():
             write_atomic(guide, GUIDE.encode())
         failures = 0
-        for repo, project_dir in project_dirs(vault):
+        targets = project_dirs(vault)
+        if adopt and "all" not in names:
+            unknown = set(names) - {d.name for _, d in targets}
+            if unknown:
+                log(f"  unknown repo(s): {', '.join(sorted(unknown))}")
+                return 2
+            targets = [(r, d) for r, d in targets if d.name in names]
+        for repo, project_dir in targets:
             try:
                 if adopt:
                     adopt_memory(repo, project_dir, dry)
