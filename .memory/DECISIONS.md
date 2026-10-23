@@ -1,5 +1,12 @@
 # DECISIONS — ecosystem-kit
 
+- 2026-10-23 — **`unwedge-hooks.py` is retired, not added to `tools/`.** It was a
+  July emergency patch that rewrote relative hook commands to
+  `$CLAUDE_PROJECT_DIR`. The settings template has shipped that wiring since
+  2026-07-29, and on 2026-10-23 none of the seven registered repos had a
+  relative hook command left, so there is nothing for it to fix.
+  The machine copy moved to `~/.claude/bin-retired-2026-10-23/` with the other
+  one-off scripts.
 - 2026-10-20 — **The kit edits a project-owned file only inside explicit markers,
   and treats any doubt as "leave it alone".** Owner approved letting the kit
   rewrite CLAUDE.md after the 2026-10-19 scratch rule reached five repos'

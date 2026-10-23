@@ -1,5 +1,8 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-23 — `bootstrap-machine.sh` no longer lists `unwedge-hooks.py`. The
+  file was never in `tools/`, so every bootstrap run printed a "not in this kit
+  checkout" warning for it.
 - 2026-10-20 — **The kit may now rewrite marked blocks inside a project's
   `CLAUDE.md`** (owner-approved), so a kit-wide policy reaches installed repos
   and not only new installs. New `installer/kit_blocks.py`: text between
