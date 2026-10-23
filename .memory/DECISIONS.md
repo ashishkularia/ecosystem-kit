@@ -7,6 +7,17 @@
   relative hook command left, so there is nothing for it to fix.
   The machine copy moved to `~/.claude/bin-retired-2026-10-23/` with the other
   one-off scripts.
+- 2026-10-23 — **Obsidian holds a copy of what git owns, and owns only what nothing
+  else reads.** Owner and Gunjan want all project knowledge in one vault, editable on
+  the phone. The hooks, mylantite's CI and cloud sessions read `.memory/` and docs from
+  the repo, so those stay in git and the vault gets a one-way copy from the default
+  branch. Two-way sync was rejected: the main checkout changes branches, and phone
+  edits would land as uncommitted changes on main. Edits made in the vault are never
+  lost; they move to `Inbox/`, which session start surfaces and Claude turns into PRs
+  only when asked. Auto memory is read by nothing but Claude, so the vault becomes
+  its only copy. One vault with a folder per repo, not a vault per repo: one sync
+  setup, one search, one path. Supersedes the 2026-07-23 rule that `auto/` lives in
+  tracked `.memory/`.
 - 2026-10-20 — **The kit edits a project-owned file only inside explicit markers,
   and treats any doubt as "leave it alone".** Owner approved letting the kit
   rewrite CLAUDE.md after the 2026-10-19 scratch rule reached five repos'

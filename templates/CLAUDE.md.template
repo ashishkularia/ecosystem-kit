@@ -90,6 +90,28 @@ owner explicitly asks.
   either.
 <!-- kit:end scratch -->
 
+<!-- kit:begin vault (managed by ecosystem-kit update.sh: edits inside these markers are overwritten; put project-specific policy outside them) -->
+## The Obsidian vault
+
+On a machine with a vault (its path is in `~/.claude/vault-dir`), this project
+has a folder at `<vault>/Projects/<repo directory name>/`, and session start
+prints it. The owner and Gunjan read and edit it on their phones.
+
+- `Repo/` is a read-only copy of this repo's docs and `.memory/` from the
+  default branch, refreshed hourly by `vault-sync`. Never edit it: change the
+  repo, and the copy follows once the change is merged.
+- `Claude memory/` is the auto-memory directory. The owner and Gunjan may edit
+  or delete notes there, so treat what you find as current.
+- `Inbox/` holds change requests from the owner or Gunjan, including Repo/
+  edits that `vault-sync` moved there. Tell the user what is waiting and act
+  on a note only when asked. Once its PR is open, move the note to
+  `Inbox/Done/` with the PR link added at the end.
+- Everything in the vault reaches every device. Scratch, `.memory/cache/` and
+  secrets never go there.
+- Obsidian ignores folders whose names start with `.`, so never create one in
+  the vault.
+<!-- kit:end vault -->
+
 ## Session helpers
 
 `/state` `/verify` `/issues` `/idea` `/decide` `/retro` `/summary` `/diary`

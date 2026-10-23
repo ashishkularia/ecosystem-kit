@@ -88,7 +88,7 @@ templates/             memory roster, settings, CLAUDE.md, commands/, agents/, s
 profiles/              per-project kit.json seeds (mylantite, grade5, meritick, homelab, devcontainer)
 installer/             install.sh, update.sh
 scripts/               health-check.sh
-tools/                 machine layer: safe-push, weekly-hygiene, pr-comment-poller, mcp-audit,
+tools/                 machine layer: safe-push, weekly-hygiene, pr-comment-poller, mcp-audit, vault-sync,
                        guard_protected_branch.py, bootstrap-machine.sh (deploys it all)
 docs/ARCHITECTURE.md   how it all fits together
 kit.config.example.json / .md   full schema example + key-by-key reference
