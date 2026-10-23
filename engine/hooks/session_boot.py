@@ -11,6 +11,8 @@ Emits hookSpecificOutput.additionalContext containing:
   - open "- [ ]" counts in VERIFY.md and ISSUES.md
   - last 20 lines of the newest .memory/diary/*.md
   - git branch, dirty-file count, unpushed-commit count
+  - where this project's Obsidian vault folder is, and the Inbox notes waiting
+    in it, when this machine has a vault (~/.claude/vault-dir)
   - the kit.json always_load list, with the instruction to Read each before
     substantive work
 
@@ -158,6 +160,40 @@ def newest_diary(branch=""):
     return max(files, key=lambda p: (os.path.getmtime(p), p))
 
 
+VAULT_FILE = os.path.expanduser("~/.claude/vault-dir")
+
+
+def vault_section():
+    """The project's vault folder and its waiting Inbox notes, or [] when this
+    machine has no vault or the project has no folder in it yet."""
+    try:
+        with open(VAULT_FILE, encoding="utf-8") as f:
+            vault = os.path.expanduser(f.read().strip())
+    except OSError:
+        return []
+    folder = os.path.join(vault, "Projects", os.path.basename(PROJECT_ROOT))
+    if not vault or not os.path.isdir(folder):
+        return []
+    inbox = os.path.join(folder, "Inbox")
+    try:
+        notes = sorted(n for n in os.listdir(inbox)
+                       if n.endswith(".md") and os.path.isfile(os.path.join(inbox, n)))
+    except OSError:
+        notes = []
+    lines = [f"## Obsidian vault: {folder}",
+             "Repo/ is a read-only copy of main (vault-sync); change the repo, never Repo/. "
+             "Claude memory/ is the auto-memory directory."]
+    if notes:
+        lines.append(f"Inbox: {len(notes)} note(s) from the owner or Gunjan. Tell the user "
+                     "they are waiting; act on one only when asked, then move it to Inbox/Done/:")
+        lines.extend(f"  - {n}" for n in notes[:10])
+        if len(notes) > 10:
+            lines.append(f"  - ... and {len(notes) - 10} more")
+    else:
+        lines.append("Inbox: empty.")
+    return lines + [""]
+
+
 def build_context():
     kit = load_kit()
     parts = []
@@ -201,6 +237,11 @@ def build_context():
 
     parts.append(f"## Git: branch `{branch}` · {dirty} dirty file(s) · {unpushed} unpushed commit(s)")
     parts.append("")
+
+    try:
+        parts.extend(vault_section())
+    except Exception:
+        pass  # a vault problem must never cost the rest of the boot context
 
     # Always-load
     always = kit.get("always_load", [])

@@ -35,13 +35,13 @@ mkdir -p "$BIN" "$HOOKS_MACHINE" "$HOME/.secrets"
 chmod 700 "$HOME/.secrets"
 
 act "machine tools -> $BIN"
-for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches mcp-audit deploy-artifacts start-remote-sessions.sh; do
+for t in safe-push pr-thread weekly-hygiene pr-comment-poller kit-propagate pr-rebase prune-stale-branches mcp-audit deploy-artifacts vault-sync start-remote-sessions.sh; do
   if [ -f "$KIT/tools/$t" ]; then cp "$KIT/tools/$t" "$BIN/$t" && chmod +x "$BIN/$t"
   else warn "tool not in this kit checkout, skipped: $t"; fi
 done
 cp "$KIT/tools/guard_protected_branch.py" "$HOOKS_MACHINE/guard_protected_branch.py"
 chmod +x "$HOOKS_MACHINE/guard_protected_branch.py"
-ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, mcp-audit, deploy-artifacts, start-remote-sessions, guard_protected_branch"
+ok "safe-push, pr-thread, weekly-hygiene, pr-comment-poller, kit-propagate, pr-rebase, prune-stale-branches, mcp-audit, deploy-artifacts, vault-sync, start-remote-sessions, guard_protected_branch"
 
 act "machine guardrails -> settings.local.json"
 python3 - "$SETTINGS" "$BIN" "$HOOKS_MACHINE" <<'PYEOF'
@@ -91,9 +91,10 @@ add_cron "$BIN/pr-comment-poller" "*/15 7-23 * * * $BIN/pr-comment-poller >> $HO
 add_cron "$BIN/kit-propagate"     "37 6 * * * $BIN/kit-propagate >> $HOME/.claude/kit-propagate-cron.log 2>&1"
 add_cron "$BIN/pr-rebase"         "17 8,12,16,20 * * * $BIN/pr-rebase >> $HOME/.claude/pr-rebase-cron.log 2>&1"
 add_cron "$BIN/prune-stale-branches" "52 6 * * * $BIN/prune-stale-branches >> $HOME/.claude/prune-branches-cron.log 2>&1"
+add_cron "$BIN/vault-sync"        "41 * * * * $BIN/vault-sync >> $HOME/.claude/vault-sync-cron.log 2>&1"
 if [ -n "$add" ]; then
   printf '%s\n%b' "$existing" "$add" | sed '/^$/d' | crontab -
-  ok "cron installed/updated (hygiene, PR poller, kit-propagate, pr-rebase, prune-stale-branches)"
+  ok "cron installed/updated (hygiene, PR poller, kit-propagate, pr-rebase, prune-stale-branches, vault-sync)"
 else
   ok "cron entries already present"
 fi
@@ -276,6 +277,11 @@ else
 fi
 crontab -l 2>/dev/null | grep -qF "$BIN/weekly-hygiene" && ok "cron: weekly hygiene" || warn "cron: hygiene missing"
 crontab -l 2>/dev/null | grep -qF "$BIN/pr-comment-poller" && ok "cron: PR poller" || warn "cron: poller missing"
+if [ -s "$HOME/.claude/vault-dir" ]; then
+  ok "Obsidian vault: $(cat "$HOME/.claude/vault-dir")"
+else
+  warn "no Obsidian vault — vault-sync is a no-op. To use one: echo /path/to/vault > $HOME/.claude/vault-dir"
+fi
 echo
 echo "Next: $BIN/pr-comment-poller init   (baseline open PRs so history doesn't trigger)"
 echo "Then leave a comment on any open PR — that's the whole workflow now."

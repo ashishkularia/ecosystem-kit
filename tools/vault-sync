@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""vault-sync — keep a read-only copy of every registered repo's docs in the
+Obsidian vault, and move Claude's auto memory into it.
+
+Owner ask (2026-10-23): all project knowledge in one Obsidian vault, one folder
+per project, readable and editable on the phone by the owner and Gunjan. Git
+stays the source of truth for everything the hooks, CI and cloud sessions read,
+so the vault gets a COPY of those files, refreshed from the default branch:
+
+  <vault>/Projects/<repo dir name>/Repo/            tracked *.md files from the
+                                                    default branch (origin/HEAD),
+                                                    never the working tree, so a
+                                                    checkout on a feature branch
+                                                    changes nothing here
+  <vault>/Projects/<repo dir name>/Inbox/           edits made in the vault land
+                                                    here; Claude turns them into PRs
+  <vault>/Projects/<repo dir name>/Claude memory/   autoMemoryDirectory after
+                                                    `adopt-memory`; the vault is
+                                                    its only copy
+
+Obsidian ignores dot-folders, so `.memory/` is copied as `memory/`. Every other
+dot-directory (.claude, .github, ...), .memory/{auto,cache,scratchpad}, vendor/
+and node_modules/ are skipped.
+
+A vault edit is never lost. The manifest records the hash of what was last
+written to each Repo/ file; a file that no longer matches was edited in the
+vault, and is moved to Inbox/ (with a note naming its source) before the copy
+is restored. A file that disappears from the repo gets the same treatment when
+it was edited, and is simply removed when it was not.
+
+Modes:
+  vault-sync                     refresh every registered repo's Repo/ copy
+  vault-sync check               dry-run: report what would change
+  vault-sync adopt-memory        point each repo's autoMemoryDirectory at the
+                                 vault and copy its existing notes there
+  vault-sync adopt-memory check  dry-run of the above
+
+Vault path: one line in ~/.claude/vault-dir. No file, or a path that does not
+exist, is a no-op (exit 0), so a machine without the vault is unaffected.
+Registry: ~/.claude/repo-registry (shared). No network beyond `git fetch`.
+"""
+import fcntl
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+HOME = Path.home()
+REGISTRY = HOME / ".claude" / "repo-registry"
+VAULT_FILE = HOME / ".claude" / "vault-dir"
+STATE_DIR = HOME / ".claude" / "vault-sync"
+LOG = HOME / ".claude" / "vault-sync.log"
+SKIP_MEMORY = (".memory/auto/", ".memory/cache/", ".memory/scratchpad/")
+SKIP_DIRS = {"vendor", "node_modules"}
+MAX_BYTES = 2 * 1024 * 1024
+MEMORY_FOLDER = "Claude memory"
+GUIDE_NAME = "How project folders work.md"
+GUIDE = """# How project folders work
+
+Each folder under `Projects/` is one repo.
+
+- **Repo/** is a copy of the repo's docs and `.memory/` files from its main
+  branch, refreshed every hour. Read anything here. If you edit a file here,
+  your version is moved to **Inbox/** within the hour and the copy is put back,
+  so nothing you write is lost.
+- **Inbox/** is for changes and requests. Write a note here (or edit a Repo/
+  file and let it move here) and Claude turns it into a pull request.
+- **Claude memory/** is what Claude remembers about the project. Edit or delete
+  notes freely; Claude reads this folder at the start of every session.
+"""
+
+
+def now():
+    return datetime.now(timezone.utc)
+
+
+def log(msg):
+    stamp = now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        with open(LOG, "a") as f:
+            f.write(f"{stamp} {msg}\n")
+    except OSError:
+        pass
+    print(msg)
+
+
+def git(repo, *args, timeout=120, input_bytes=None):
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True,
+                          timeout=timeout, input=input_bytes)
+
+
+def vault_dir():
+    try:
+        p = Path(VAULT_FILE.read_text().strip()).expanduser()
+    except OSError:
+        return None
+    return p if p.is_dir() else None
+
+
+def registered_paths():
+    if not REGISTRY.exists():
+        return []
+    return [Path(ln.split("#")[0].strip()) for ln in REGISTRY.read_text().splitlines()
+            if ln.split("#")[0].strip()]
+
+
+def default_ref(repo):
+    r = git(repo, "rev-parse", "--abbrev-ref", "origin/HEAD")
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.decode().strip()
+    for cand in ("origin/main", "origin/master"):
+        if git(repo, "rev-parse", "--verify", "-q", cand).returncode == 0:
+            return cand
+    return None
+
+
+def vault_path(rel):
+    """Repo path -> path under Repo/, or None when it is not copied."""
+    if not rel.lower().endswith(".md"):
+        return None
+    if rel.startswith(SKIP_MEMORY):
+        return None
+    parts = rel.split("/")
+    if parts[0] == ".memory":
+        parts[0] = "memory"
+    if any(p.startswith(".") or p in SKIP_DIRS for p in parts[:-1]):
+        return None
+    if parts[-1].startswith("."):
+        return None
+    return "/".join(parts)
+
+
+def tracked_docs(repo, ref):
+    """{vault relative path: (repo path, blob sha)} for the default branch."""
+    r = git(repo, "ls-tree", "-r", "-z", "--long", ref)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode().strip()[:200])
+    docs = {}
+    for entry in r.stdout.decode("utf-8", "replace").split("\0"):
+        if not entry:
+            continue
+        meta, rel = entry.split("\t", 1)
+        mode, kind, sha, size = meta.split()
+        if kind != "blob" or mode == "120000" or size == "-" or int(size) > MAX_BYTES:
+            continue
+        dest = vault_path(rel)
+        if dest:
+            docs[dest] = (rel, sha)
+    return docs
+
+
+def read_blobs(repo, shas):
+    """sha -> bytes, through one `git cat-file --batch`."""
+    if not shas:
+        return {}
+    r = git(repo, "cat-file", "--batch", input_bytes="".join(f"{s}\n" for s in shas).encode())
+    out, i, blobs = r.stdout, 0, {}
+    while i < len(out):
+        nl = out.index(b"\n", i)
+        sha, _, size = out[i:nl].decode().split()
+        start = nl + 1
+        blobs[sha] = out[start:start + int(size)]
+        i = start + int(size) + 1
+    return blobs
+
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def write_atomic(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".{path.name}.vault-sync-tmp"
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
+def inbox_target(inbox, repo_rel, day):
+    stem = repo_rel[:-3].replace("/", " - ").lstrip(".")
+    target = inbox / f"{stem} (edited {day}).md"
+    n = 2
+    while target.exists():
+        target = inbox / f"{stem} (edited {day}) {n}.md"
+        n += 1
+    return target
+
+
+def with_source_note(data, repo_name, repo_rel, day):
+    note = (f"> [!note] Edited copy of `{repo_rel}` ({repo_name}), moved here by "
+            f"vault-sync on {day}. The Repo/ copy was put back to the main branch "
+            f"version.\n\n").encode()
+    if data.startswith(b"---\n"):
+        end = data.find(b"\n---\n", 4)
+        if end != -1:
+            cut = end + 5
+            return data[:cut] + b"\n" + note + data[cut:]
+    return note + data
+
+
+def prune_empty_dirs(root):
+    for dirpath, _, _ in sorted(os.walk(root), key=lambda t: -len(t[0])):
+        p = Path(dirpath)
+        if p != root:
+            try:
+                p.rmdir()
+            except OSError:
+                pass
+
+
+def sync_repo(repo, project_dir, dry):
+    name = project_dir.name
+    git(repo, "fetch", "-q", "origin", timeout=90)
+    ref = default_ref(repo)
+    if not ref:
+        log(f"  {name}: SKIP — no origin/HEAD, origin/main or origin/master")
+        return
+    docs = tracked_docs(repo, ref)
+    repo_dir, inbox = project_dir / "Repo", project_dir / "Inbox"
+    manifest_path = STATE_DIR / f"{name}.json"
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except (OSError, ValueError):
+        manifest = {}
+    day = now().strftime("%Y-%m-%d")
+    blobs = read_blobs(repo, sorted({sha for _, sha in docs.values()}))
+    written = moved = removed = 0
+    new_manifest = {}
+
+    def rescue(dest, rel_in_repo):
+        nonlocal moved
+        target = inbox_target(inbox, rel_in_repo, day)
+        moved += 1
+        log(f"  {name}: vault edit to Repo/{dest.relative_to(repo_dir)} -> Inbox/{target.name}")
+        if not dry:
+            write_atomic(target, with_source_note(dest.read_bytes(), name, rel_in_repo, day))
+
+    for rel, (repo_rel, sha) in sorted(docs.items()):
+        data = blobs.get(sha)
+        if data is None:
+            continue
+        dest = repo_dir / rel
+        want = digest(data)
+        new_manifest[rel] = {"hash": want, "source": repo_rel}
+        if dest.exists():
+            have = digest(dest.read_bytes())
+            if have == want:
+                continue
+            recorded = manifest.get(rel, {}).get("hash")
+            if have != recorded:
+                rescue(dest, repo_rel)
+        written += 1
+        if not dry:
+            write_atomic(dest, data)
+
+    for rel, entry in manifest.items():
+        if rel in new_manifest:
+            continue
+        dest = repo_dir / rel
+        if not dest.exists():
+            continue
+        if digest(dest.read_bytes()) != entry.get("hash"):
+            rescue(dest, entry.get("source", rel))
+        removed += 1
+        if not dry:
+            dest.unlink()
+
+    if not dry:
+        if repo_dir.exists():
+            prune_empty_dirs(repo_dir)
+        inbox.mkdir(parents=True, exist_ok=True)
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        write_atomic(manifest_path, json.dumps(new_manifest, indent=1, sort_keys=True).encode())
+    log(f"  {name}: {ref} · {len(docs)} docs · {written} written · {removed} removed · "
+        f"{moved} vault edit(s) moved to Inbox{' (dry run)' if dry else ''}")
+
+
+def project_dirs(vault):
+    """[(repo, project dir)], one per registered repo; a duplicate dir name is
+    skipped rather than letting two repos share a folder."""
+    seen, out = set(), []
+    for repo in registered_paths():
+        if not (repo / ".git").exists():
+            log(f"  {repo}: SKIP — not a git checkout")
+            continue
+        if repo.name in seen:
+            log(f"  {repo}: SKIP — another registered repo is already named {repo.name}")
+            continue
+        seen.add(repo.name)
+        out.append((repo, vault / "Projects" / repo.name))
+    return out
+
+
+def adopt_memory(repo, project_dir, dry):
+    name = project_dir.name
+    settings_path = repo / ".claude" / "settings.local.json"
+    try:
+        settings = json.loads(settings_path.read_text())
+    except OSError:
+        settings = {}
+    except ValueError:
+        log(f"  {name}: SKIP — .claude/settings.local.json is not valid JSON")
+        return
+    target = project_dir / MEMORY_FOLDER
+    current = Path(settings.get("autoMemoryDirectory") or repo / ".memory" / "auto")
+    if current == target:
+        log(f"  {name}: already adopted")
+        return
+    copied = kept_both = 0
+    tracked = set()
+    if current.is_dir():
+        r = git(repo, "ls-files", "-z", "--", str(current))
+        tracked = {repo / p for p in r.stdout.decode().split("\0") if p}
+        for src in sorted(p for p in current.rglob("*") if p.is_file()):
+            if src.name == ".gitkeep":
+                continue
+            dest = target / src.relative_to(current)
+            if dest.exists() and dest.read_bytes() != src.read_bytes():
+                dest = dest.with_name(f"{dest.stem} (repo copy){dest.suffix}")
+                kept_both += 1
+            copied += 1
+            if not dry:
+                if not dest.exists():
+                    write_atomic(dest, src.read_bytes())
+                if src not in tracked and dest.read_bytes() == src.read_bytes():
+                    src.unlink()
+    log(f"  {name}: autoMemoryDirectory {current} -> {target} · {copied} note(s) copied"
+        f" · {kept_both} kept as '(repo copy)' · {sum(p.name != '.gitkeep' for p in tracked)}"
+        f" tracked note(s) left for a git rm PR{' (dry run)' if dry else ''}")
+    if not dry:
+        target.mkdir(parents=True, exist_ok=True)
+        settings["autoMemoryDirectory"] = str(target)
+        write_atomic(settings_path, (json.dumps(settings, indent=2) + "\n").encode())
+
+
+def main(argv):
+    dry = "check" in argv
+    adopt = "adopt-memory" in argv
+    vault = vault_dir()
+    if not vault:
+        print(f"vault-sync: no vault (set its path in {VAULT_FILE}); nothing to do")
+        return 0
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with open(STATE_DIR / "lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            print("vault-sync: another run holds the lock; exiting")
+            return 0
+        log(f"vault-sync {'adopt-memory' if adopt else 'mirror'} -> {vault}"
+            f"{' (dry run)' if dry else ''}")
+        guide = vault / "Projects" / GUIDE_NAME
+        if not dry and not guide.exists():
+            write_atomic(guide, GUIDE.encode())
+        failures = 0
+        for repo, project_dir in project_dirs(vault):
+            try:
+                if adopt:
+                    adopt_memory(repo, project_dir, dry)
+                else:
+                    sync_repo(repo, project_dir, dry)
+            except Exception as e:
+                failures += 1
+                log(f"  {project_dir.name}: ERROR — {e}")
+        return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

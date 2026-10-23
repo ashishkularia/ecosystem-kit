@@ -3,6 +3,14 @@
 - 2026-10-23 — `bootstrap-machine.sh` no longer lists `unwedge-hooks.py`. The
   file was never in `tools/`, so every bootstrap run printed a "not in this kit
   checkout" warning for it.
+- 2026-10-23 — **Project knowledge is readable and editable in the Obsidian vault.**
+  New `tools/vault-sync` (hourly cron, deployed by `bootstrap-machine.sh`) copies
+  every registered repo's tracked docs and `.memory/` from its default branch to
+  `<vault>/Projects/<repo dir>/Repo/`, moves any vault edit to that project's
+  `Inbox/` before restoring the copy, and with `adopt-memory` moves Claude's auto
+  memory to `Projects/<repo dir>/Claude memory/`. `session_boot` prints the vault
+  folder and waiting Inbox notes. New managed CLAUDE.md block `vault` tells every
+  repo's sessions how the folders work. 15 new tests.
 - 2026-10-20 — **The kit may now rewrite marked blocks inside a project's
   `CLAUDE.md`** (owner-approved), so a kit-wide policy reaches installed repos
   and not only new installs. New `installer/kit_blocks.py`: text between
