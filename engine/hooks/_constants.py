@@ -144,8 +144,11 @@ SECRET_PATTERNS = [
     ("Bearer token", r"""(?i)bearer\s+[a-zA-Z0-9._\-]{20,}""", "Bearer token detected"),
 ]
 
-PASSWORD_PATTERN = r"""password\s*[:=]\s*['"]([^'"]+)['"]"""
-GENERIC_SECRET_PATTERN = r"""secret\s*[:=]\s*['"]([^'"]{8,})['"]"""
+# An assignment is `=`, or a colon on the key. psql interpolates a variable
+# as :'name', its colon set apart from the key and touching the quote.
+_ASSIGNED = r"""(?:\s*=|:|\s+:(?!['"]))\s*"""
+PASSWORD_PATTERN = r"""password""" + _ASSIGNED + r"""['"]([^'"]+)['"]"""
+GENERIC_SECRET_PATTERN = r"""secret""" + _ASSIGNED + r"""['"]([^'"]{8,})['"]"""
 ALLOWED_PASSWORD_VALUES = {"password", "secret", "", "changeme", "example"}
 
 # Destructive git patterns (used by guard_dangerous_commands.py).
