@@ -44,6 +44,19 @@ class BlockingTest(unittest.TestCase):
         code, _out, _err = run_hook(MOD, payload)
         self.assertEqual(code, 2)
 
+    def test_every_assignment_spacing_blocked(self):
+        for line in (
+            'password="hunter2secret!"',
+            "password: 'hunter2secret!'",
+            "password:'hunter2secret!'",
+            "password : 'hunter2secret!'",
+            "secret = 'abcdefghij12'",
+            "secret: 'abcdefghij12'",
+        ):
+            with self.subTest(line=line):
+                code, _out, _err = run_hook(MOD, write_payload("/repo/config/app.yml", line))
+                self.assertEqual(code, 2)
+
 
 class AllowedTest(unittest.TestCase):
     def test_clean_content_allowed(self):
@@ -59,6 +72,15 @@ class AllowedTest(unittest.TestCase):
     def test_env_interpolated_password_allowed(self):
         payload = write_payload("/repo/config/database.php", "password = \"${DB_PASSWORD}\"")
         code, _out, err = run_hook(MOD, payload)
+        self.assertEqual(code, 0, err)
+
+    def test_psql_variable_interpolation_allowed(self):
+        script = (
+            "\\getenv app_pass APP_DB_PASSWORD\n"
+            "CREATE ROLE :\"app_user\" LOGIN PASSWORD :'app_pass';\n"
+            "ALTER ROLE :\"app_user\" LOGIN PASSWORD :\"app_pass\";\n"
+        )
+        code, _out, err = run_hook(MOD, write_payload("/repo/scripts/db/bootstrap-role.sh", script))
         self.assertEqual(code, 0, err)
 
     def test_env_example_skipped(self):

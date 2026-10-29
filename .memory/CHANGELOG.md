@@ -1,5 +1,12 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-30 — `secret_scanner` no longer blocks psql's variable interpolation.
+  `PASSWORD :'app_pass'` reads a psql variable, but the password and generic
+  secret patterns took its colon for an assignment, so a DB-role bootstrap script
+  that held no secret could not be written (mylantite, 2026-10-21). An assignment
+  is now `=`, or a colon attached to the key; a colon set apart from the key and
+  touching the quote is psql's. `password: 'x'`, `password:'x'` and
+  `password : 'x'` still block.
 - 2026-10-23 — `bootstrap-machine.sh` no longer lists `unwedge-hooks.py`. The
   file was never in `tools/`, so every bootstrap run printed a "not in this kit
   checkout" warning for it.

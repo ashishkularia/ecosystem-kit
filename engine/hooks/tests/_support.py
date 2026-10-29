@@ -102,8 +102,8 @@ def _ensure_constants():
     # real one or a guard test would silently exercise different parsing.
     stub.split_shell_commands = _real_split_shell_commands
     stub.SECRET_PATTERNS = []
-    stub.PASSWORD_PATTERN = r"""password\s*[:=]\s*['"]([^'"]+)['"]"""
-    stub.GENERIC_SECRET_PATTERN = r"""secret\s*[:=]\s*['"]([^'"]{8,})['"]"""
+    stub.PASSWORD_PATTERN = r"""password(?:\s*=|:|\s+:(?!['"]))\s*['"]([^'"]+)['"]"""
+    stub.GENERIC_SECRET_PATTERN = r"""secret(?:\s*=|:|\s+:(?!['"]))\s*['"]([^'"]{8,})['"]"""
     stub.ALLOWED_PASSWORD_VALUES = {"password", "secret", "", "changeme", "example"}
     stub.DESTRUCTIVE_GIT_PATTERNS = []
     stub.DESTRUCTIVE_GIT_CASE_SENSITIVE = []
