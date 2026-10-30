@@ -137,6 +137,13 @@ def fallback_direct(hook_name, payload_str):
             # hooks (node-based linters etc.) exceeded 30s on WSL2 in v1.
             timeout=45, cwd=os.getcwd(),
         )
+        if result.returncode not in (0, 2) and hook_name in BLOCKING_HOOKS:
+            # The hook died before its own guard could answer: a syntax error
+            # or an exception at import, which the daemon cannot load either.
+            # Claude Code reads exit 1 as a non-blocking error and runs the
+            # tool, so a blocking hook that cannot start would wave it through.
+            print(result.stderr, end="", file=sys.stderr)
+            fail(hook_name, f"hook exited {result.returncode} before answering")
         emit(result.returncode, result.stdout, result.stderr)
     except subprocess.TimeoutExpired:
         fail(hook_name, "hook timed out")
