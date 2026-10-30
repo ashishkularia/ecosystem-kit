@@ -1,5 +1,13 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-31 — `prune-stale-branches` deletes a squash-merged branch only when
+  a merged PR from it carried its tip: the tip is that PR's head commit or an
+  ancestor of it. The job used to read the branch's upstream instead, which was
+  wrong both ways. A branch made from `origin/main` keeps that upstream, so
+  after a squash merge it read "ahead" for good, and `chore/bootstrap-drop-unwedge`
+  was kept from 2026-10-23 to 10-31. Once a merged branch's remote was deleted,
+  its upstream read "[gone]", so a commit made after the merge was deleted with
+  it. Three tests hold both cases.
 - 2026-10-30 — Each block in `templates/CLAUDE.md.template` keeps a blank line
   just inside both markers. Prettier puts one there, so an update that inserted
   the scratch or vault block failed the format check of a project that runs
