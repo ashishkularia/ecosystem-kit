@@ -1,5 +1,13 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-31 — A blocking hook that cannot start now fails closed. A syntax
+  error or an exception at import kills the hook before its own guard runs, and
+  the daemon cannot load it either, so the client ran the file directly and
+  passed its exit 1 through. Claude Code reads exit 1 as a non-blocking error,
+  so a broken `secret_scanner` let every Write through. `_client.py` now exits 2
+  when a blocking hook exits with anything but 0 or 2; an advisory hook still
+  exits 1 with its error on stderr. The fail-open/fail-closed VERIFY row's first
+  behavioural pass found it.
 - 2026-10-31 — `prune-stale-branches` deletes a squash-merged branch only when
   a merged PR from it carried its tip: the tip is that PR's head commit or an
   ancestor of it. The job used to read the branch's upstream instead, which was
