@@ -1,5 +1,10 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-10-30 — Each block in `templates/CLAUDE.md.template` keeps a blank line
+  just inside both markers. Prettier puts one there, so an update that inserted
+  the scratch or vault block failed the format check of a project that runs
+  Prettier on CLAUDE.md (mylantite's CI lint). A `ShippedTemplateTest` case
+  holds every block to it.
 - 2026-10-30 — `secret_scanner` no longer blocks psql's variable interpolation.
   `PASSWORD :'app_pass'` reads a psql variable, but the password and generic
   secret patterns took its colon for an assignment, so a DB-role bootstrap script
