@@ -202,6 +202,16 @@ class ShippedTemplateTest(unittest.TestCase):
         self.assertIn("never in /tmp", body)
         self.assertIn("managed by ecosystem-kit", lines[b])
 
+    def test_each_block_keeps_a_blank_line_inside_its_markers(self):
+        # Prettier puts one there, so without it every update fails the format
+        # check of a project that runs Prettier on CLAUDE.md.
+        lines = read(TEMPLATE_PATH).split("\n")
+        good, _ = KB.spans(lines)
+        for name, (b, e) in good.items():
+            with self.subTest(block=name):
+                self.assertEqual(lines[b + 1], "")
+                self.assertEqual(lines[e - 1], "")
+
     def test_install_then_update_is_a_no_op(self):
         # install.sh renders the template; update.sh must then find nothing to do.
         template = read(TEMPLATE_PATH)
