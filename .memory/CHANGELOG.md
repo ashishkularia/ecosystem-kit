@@ -1,5 +1,11 @@
 # CHANGELOG — ecosystem-kit
 
+- 2026-11-01 — `bootstrap-machine.sh`'s GitHub SSH step passes for a key
+  GitHub accepts. GitHub answers `ssh -T` with exit 1 even then, and the
+  script's `pipefail` carried that exit through the pipe into `grep`, so the
+  step has failed on every machine since the bootstrap was written (`e9798ef`):
+  a headless run warned, and an interactive one asked for the step again until
+  it was skipped. The check now tests the greeting alone.
 - 2026-10-31 — A blocking hook that cannot start now fails closed. A syntax
   error or an exception at import kills the hook before its own guard runs, and
   the daemon cannot load it either, so the client ran the file directly and
