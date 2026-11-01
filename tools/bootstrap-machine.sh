@@ -125,8 +125,11 @@ step() {  # $1 title, $2 instructions, $3 verify-fn
 }
 
 verify_ssh() {
-  ssh -T git@github.com -o BatchMode=yes -o ConnectTimeout=10 2>&1 \
-    | grep -q "successfully authenticated"
+  # GitHub answers `ssh -T` with exit 1 even for a key it accepts, and pipefail
+  # would carry that exit through a pipe, so only the greeting is tested.
+  local greeting
+  greeting=$(ssh -T git@github.com -o BatchMode=yes -o ConnectTimeout=10 2>&1)
+  grep -q "successfully authenticated" <<<"$greeting"
 }
 
 verify_pat() {
